@@ -62,6 +62,8 @@ Why this segment:
 - Product spec: [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md)
 - Technical architecture: [`docs/TECHNICAL_ARCHITECTURE.md`](./docs/TECHNICAL_ARCHITECTURE.md)
 - Contract spec: [`docs/CONTRACT_SPEC.md`](./docs/CONTRACT_SPEC.md)
+- Delivery plan: [`docs/DELIVERY_PLAN.md`](./docs/DELIVERY_PLAN.md)
+- Testing and deployment strategy: [`docs/TESTING_AND_DEPLOYMENT_STRATEGY.md`](./docs/TESTING_AND_DEPLOYMENT_STRATEGY.md)
 - State machine: [`docs/STATE_MACHINE.md`](./docs/STATE_MACHINE.md)
 - Data model: [`docs/DATA_MODEL.md`](./docs/DATA_MODEL.md)
 - Threat model: [`docs/THREAT_MODEL.md`](./docs/THREAT_MODEL.md)
