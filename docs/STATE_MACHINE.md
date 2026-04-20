@@ -12,6 +12,8 @@ The MVP assumptions in this document are:
 - one buyer, one seller, one arbiter
 - a disputed milestone pauses later milestones
 - no mutual settlement flow in v1
+- `fundMilestone()` is the primary funding path
+- `fundAllMilestones()` is supported but non-essential for first UI release
 
 ## 2. Actors
 
@@ -322,6 +324,9 @@ The system must define one precise timing rule and use it everywhere:
 Recommended implementation rule:
 - `block.timestamp > reviewDeadline` is required for claim
 - `block.timestamp <= reviewDeadline` is allowed for dispute
+
+Recommended product default:
+- review windows default to 5 days unless overridden at deal creation
 
 This prevents overlap between claim and dispute eligibility.
 

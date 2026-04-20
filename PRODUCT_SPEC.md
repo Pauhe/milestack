@@ -136,9 +136,12 @@ The MVP should make a small number of non-optional decisions so product and cont
 - dispute model: named human arbiter per deal
 - milestone ordering: milestones are sequential
 - milestone progression: a disputed milestone pauses later milestones
+- default review window: 5 days
 - settlement path: mutual settlement is post-MVP, not required for first release
 - arbiter sourcing: buyer and seller choose the arbiter themselves in MVP
 - metadata storage: detailed terms live offchain and are referenced by hash onchain
+- deal visibility: public-by-default in MVP
+- funding UX: `fundMilestone()` is the core path, `fundAllMilestones()` is supported but optional
 
 These defaults reduce implementation ambiguity and prevent the MVP from becoming a generalized marketplace before the core escrow flow is proven.
 
@@ -299,6 +302,17 @@ To avoid ambiguous timing behavior, the MVP should define these hard rules:
 - approval before the deadline immediately releases funds and closes the milestone
 - a buyer who misses the dispute window loses the right to block payout for that submission
 
+### Default review window
+
+The default review window for MVP should be 5 days.
+
+Reasoning:
+- long enough for normal client response cycles across time zones
+- short enough that sellers are not left in limbo for too long
+- simple and consistent as a default template for agency-style work
+
+The UI may allow custom review windows per milestone within a bounded range, but 5 days should be the recommended default.
+
 ### Evidence expectations
 
 The contract should only store compact evidence references, but the product should require each submission to include at least one evidence item reference. For MVP, accepted evidence types can be:
@@ -448,6 +462,7 @@ This is easier to trust than a black-box trust score and easier to iterate befor
 - basic reputation from completed deals and disputes
 - offchain deal metadata with onchain hash reference
 - event-indexed activity and reputation backend
+- public deal pages and public reputation pages in MVP
 
 ### Out of scope
 
@@ -465,6 +480,7 @@ This is easier to trust than a black-box trust score and easier to iterate befor
 - platform-supplied arbitration network
 - milestone mutual settlement flow
 - onchain storage of full deal text and attachments
+- private deals or role-gated metadata visibility
 
 ### Explicit MVP constraints
 
@@ -668,8 +684,7 @@ This keeps incentives cleaner in disputes and makes fee behavior easier to expla
 
 ## 22. Open Questions
 
-- What is the best default review window: 3 days, 5 days, or 7 days?
-- Should the MVP allow upfront funding of all milestones in addition to sequential funding?
+- Should the UI expose `fundAllMilestones()` in the first release or keep it backend/contract-ready for shortly after launch?
 - Should seller submissions support multiple evidence references per milestone from day one, or just one canonical reference plus note?
 - How much metadata should live onchain versus by URI or hash reference?
 - Which first vertical is strongest: agencies, crypto contributor payments, or creator sponsorships?
@@ -682,6 +697,8 @@ These questions are no longer open for MVP:
 - arbiters are user-selected, not platform-assigned
 - the contract model is one escrow per deal
 - reputation is displayed primarily as raw stats in MVP
+- the default review window is 5 days
+- deal visibility is public-by-default
 
 ## 23. Suggested Roadmap
 

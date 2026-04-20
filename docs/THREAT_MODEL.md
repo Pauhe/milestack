@@ -234,6 +234,19 @@ Mitigation:
 - visibly mark unverified metadata
 - treat onchain hash as canonical reference
 
+### 6.1.1 Privacy expectation mismatch
+
+Threat:
+- users assume deal metadata is private when the MVP actually exposes public deal pages and publicly retrievable metadata
+
+Impact:
+- accidental disclosure of sensitive project terms, URLs, or attachments
+
+Mitigation:
+- make public-by-default visibility explicit in product copy
+- warn users not to include confidential material in MVP deal metadata
+- delay private-deal positioning until encryption and access control exist
+
 ### 6.2 Indexer lag or missed events
 
 Threat:

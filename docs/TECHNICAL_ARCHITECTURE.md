@@ -78,10 +78,12 @@ The following decisions should be treated as fixed for the first implementation 
 - one ERC-20 token, configured as USDC
 - one escrow contract per deal
 - sequential milestones only
+- default review window of 5 days in product templates
 - no milestone edits after escrow creation
 - no platform admin override on milestone state
 - user-selected arbiter per deal
 - reputation computed offchain from events
+- public deal and reputation pages by default
 
 These constraints are important because they keep the contract state machine narrow and make test coverage tractable.
 
@@ -256,6 +258,11 @@ The simplest valid implementation for MVP is:
 
 This avoids dependency graphs, out-of-order execution, and cross-milestone ambiguity.
 
+Recommended product behavior:
+- implement `fundAllMilestones()` at the contract layer
+- make `fundMilestone()` the default UI path
+- optionally expose `fundAllMilestones()` in the UI later once the simpler path is proven
+
 ### 4.6 Public functions
 
 Recommended core functions:
@@ -397,6 +404,10 @@ Offchain:
 - plain-language dispute explanation
 
 The frontend should validate that offchain metadata hashes to the onchain reference before presenting it as canonical.
+
+MVP visibility rule:
+- metadata referenced by public deal pages should be treated as public content
+- do not promise private deals until encrypted storage and access control are explicitly designed
 
 Possible metadata contents:
 - milestone descriptions

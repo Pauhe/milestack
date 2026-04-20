@@ -73,6 +73,7 @@ The contract should not store verbose descriptions or attachments. Those live in
   "version": 1,
   "title": "Website redesign for ExampleCo",
   "summary": "Design and implement a five-page marketing site",
+  "visibility": "public",
   "buyer": {
     "address": "0x...",
     "displayName": "ExampleCo"
@@ -91,6 +92,7 @@ The contract should not store verbose descriptions or attachments. Those live in
       "id": 0,
       "title": "Discovery and wireframes",
       "description": "Deliver wireframes for homepage, pricing, and contact pages",
+      "defaultReviewWindowSeconds": 432000,
       "deliverableChecklist": [
         "Figma wireframes",
         "Requirements summary",
@@ -256,6 +258,9 @@ Suggested columns:
 ## 6. API Response Model
 
 The API should provide both raw and derived fields. The frontend should not need to compute contract semantics from scratch for routine rendering.
+
+MVP visibility rule:
+- API responses may be treated as publicly retrievable project data unless a future privacy model is explicitly introduced.
 
 ### 6.1 `GET /escrows/:address`
 

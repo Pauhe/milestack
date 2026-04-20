@@ -79,6 +79,9 @@ Allow the seller to create a new milestone-based escrow agreement.
 - review window per milestone
 - external terms URL or uploaded metadata reference
 
+Default:
+- review window defaults to 5 days per milestone
+
 ### Validations
 
 - wallet addresses must be syntactically valid
@@ -145,7 +148,7 @@ Arbiter may see:
 - link to open dispute needing resolution
 
 Visitor may see:
-- read-only state and metadata only if deal privacy model allows it
+- read-only state and metadata because deal pages are public by default in MVP
 
 ### States
 
@@ -170,6 +173,9 @@ Error:
 - metadata failed hash verification
 - backend timeline unavailable
 - onchain read failure
+
+Important copy:
+- deal details are public in MVP; do not include confidential information in metadata or linked materials
 
 ## 7. Milestone Detail Page
 
