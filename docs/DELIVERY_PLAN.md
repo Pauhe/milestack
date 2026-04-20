@@ -153,7 +153,26 @@ Because Milestack will eventually hold real money, the plan intentionally treats
 - staging has health checks and monitoring
 - test results are visible and repeatable
 
-## 9. Phase 6: Closed Alpha On Testnet
+## 9. Phase 6: Mainnet-Fork And Deployment Rehearsal Environment
+
+### Goals
+
+- test against Base mainnet state and production-like deployment inputs before using real funds
+
+### Work items
+
+1. run contract and integration tests against a Base mainnet fork
+2. verify deployment scripts against real chain config and live token addresses
+3. verify backend config, RPC fallback behavior, and address manifests against production-like values
+4. verify smoke journeys against forked chain state
+
+### Definition of done
+
+- mainnet-fork test suite passes consistently
+- deployment scripts produce expected artifacts and addresses in rehearsal
+- no environment-specific assumptions remain hidden until mainnet
+
+## 10. Phase 7: Closed Alpha On Testnet
 
 ### Goals
 
@@ -173,14 +192,34 @@ Because Milestack will eventually hold real money, the plan intentionally treats
 - at least one or more dispute scenarios resolved cleanly
 - no unresolved correctness issues remain in the contract or indexer
 
-## 10. Phase 7: Production Readiness Review
+## 11. Phase 8: Mainnet Canary
+
+### Goals
+
+- prove the full production stack with real chain conditions before opening access widely
+
+### Work items
+
+1. deploy production contracts and infrastructure
+2. run team-controlled low-value canary deals only
+3. verify contract events, indexing, reputation derivation, alerting, and operator runbooks
+4. hold public rollout until canary operations remain stable for a defined period
+
+### Definition of done
+
+- canary deals complete successfully end to end
+- no indexing drift or alert blind spots are discovered
+- incident and rollback procedures have been exercised at least once for offchain systems
+
+## 12. Phase 9: Production Readiness Review
 
 ### Required gates
 
 1. contract unit, fuzz, invariant, and integration tests all passing
 2. frontend and backend test suites passing
 3. end-to-end staging suite passing
-4. deployment rehearsals completed
+4. Base mainnet-fork rehearsals completed
+5. canary mainnet deals completed successfully
 5. monitoring and alerting in place
 6. rollback strategy documented for offchain systems
 7. incident response and pause policy documented
@@ -193,7 +232,7 @@ For Milestack, “production ready” is not just code complete. It means:
 - operational failures are observable
 - the team knows how to detect and respond to issues quickly
 
-## 11. Phase 8: Mainnet Launch
+## 13. Phase 10: Mainnet Launch
 
 ### Launch strategy
 
@@ -242,6 +281,8 @@ Recommended rollout:
 2. add health checks and monitoring
 3. wire end-to-end environment
 4. add deployment rehearsal scripts
+5. add mainnet-fork rehearsal scripts
+6. add canary launch checklist
 
 ## 13. Definition Of A Working MVP
 

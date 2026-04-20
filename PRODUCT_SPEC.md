@@ -162,7 +162,7 @@ These defaults reduce implementation ambiguity and prevent the MVP from becoming
 
 1. Buyer opens dispute before deadline.
 2. Milestone is frozen and cannot auto-release.
-3. Arbiter reviews evidence or parties settle mutually.
+3. Arbiter reviews evidence.
 4. Arbiter allocates funds:
    - full to seller
    - full to buyer
@@ -350,7 +350,6 @@ Risk:
 
 Prevention:
 - arbiter has explicit authority to finalize
-- mutual settlement may also resolve
 - no design requiring both parties to confirm final resolution
 
 ### Arbiter disappears

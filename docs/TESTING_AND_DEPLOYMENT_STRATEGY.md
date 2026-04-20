@@ -69,6 +69,16 @@ Includes:
 - data path and health verification
 - alerting verification
 
+### Level 6: Mainnet-fork and canary validation
+
+Purpose:
+- catch production-only chain and deployment assumptions before broad rollout
+
+Includes:
+- Base mainnet-fork tests
+- deployment script rehearsals with production-like config
+- low-value mainnet canary flows after deployment
+
 ## 4. Local Development Test Strategy
 
 ## 4.1 Contracts
@@ -149,6 +159,19 @@ Key local integration scenarios:
 4. event indexer restart and replay
 5. frontend reflecting updated backend state after onchain transactions
 
+## 5.1 Mainnet-fork integration strategy
+
+Local and CI environments should also support a Base mainnet-fork mode for high-confidence rehearsals.
+
+This should be used to test:
+
+1. deployment scripts against real Base chain assumptions
+2. USDC interaction against the live token contract on a fork
+3. backend/indexer behavior against production-like block and log shapes
+4. environment variable and address manifest correctness
+
+This is not a replacement for Sepolia staging. It is a complement that reduces “works on testnet only” risk.
+
 ## 6. End-to-End Test Strategy
 
 Recommended tooling:
@@ -196,6 +219,7 @@ Each deployment rehearsal should validate:
 4. frontend points at the correct backend and chain config
 5. health checks pass after deploy
 6. smoke tests succeed for basic read paths and one full transaction flow
+7. creation-pause controls, if implemented on the factory, behave correctly
 
 ## 8. Environments
 
@@ -238,6 +262,17 @@ Components:
 - staging frontend
 - staging monitoring and alerting
 - seeded funded test wallets
+
+### 8.3.1 Mainnet-fork rehearsal environment
+
+Purpose:
+- production-like validation of chain assumptions without production money exposure
+
+Components:
+- forked Base mainnet RPC-backed local or ephemeral environment
+- rehearsal deployment config
+- backend/indexer pointed at the fork
+- smoke and integration suite
 
 ### 8.4 Production
 
@@ -379,12 +414,14 @@ The product should not launch on mainnet until all of these are true:
 1. contract test suite is green
 2. invariant/fuzz tests are green
 3. local integration suite is green
-4. staging E2E suite is green
-5. staging smoke checks pass repeatedly over time
-6. backend reindex from scratch succeeds cleanly
-7. deployment rehearsal is documented and repeatable
-8. monitoring and alerting are live and tested
-9. contract review or audit is completed before meaningful user value is exposed
+4. Base mainnet-fork integration suite is green
+5. staging E2E suite is green
+6. staging smoke checks pass repeatedly over time
+7. backend reindex from scratch succeeds cleanly
+8. deployment rehearsal is documented and repeatable
+9. monitoring and alerting are live and tested
+10. canary mainnet flow succeeds before broad release
+11. contract review or audit is completed before meaningful user value is exposed
 
 ## 14. Recommended Launch Strategy For Real Money
 
@@ -394,9 +431,10 @@ Recommended path:
 
 1. internal testnet only
 2. closed external testnet alpha
-3. mainnet soft launch with low-value deals only
-4. limited user set initially
-5. gradually increase allowed deal size and user count
+3. team-controlled canary mainnet deals only
+4. mainnet soft launch with low-value deals only
+5. limited user set initially
+6. gradually increase allowed deal size and user count
 
 This reduces blast radius if operational or UX issues appear.
 

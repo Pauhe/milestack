@@ -31,6 +31,9 @@ Locked assumptions:
 - no mutual settlement in v1
 - no platform admin override on milestone state
 
+Additional safety constraint:
+- protocol control, if any, must be strictly limited to pausing creation of new escrows and must never permit changing milestone outcomes or withdrawing escrowed funds
+
 ## 3. Roles
 
 ### 3.1 Buyer
@@ -72,6 +75,7 @@ May not:
 May:
 - deploy escrow contracts
 - set immutable protocol-level fee config for new escrows
+- pause creation of new escrows in an emergency if that capability is included
 
 May not:
 - intervene in escrow state transitions after deployment
@@ -89,6 +93,13 @@ Responsibilities:
 
 Recommended MVP implementation:
 - direct deployments, not clones
+- bounded admin control over the factory is acceptable only for pausing new escrow creation
+
+Recommended factory admin scope:
+- may pause and unpause `createEscrow`
+- may not alter deployed escrow state
+- may not move escrowed funds
+- may not retroactively change fees on existing escrows
 
 ### 4.2 `MilestoneEscrow`
 
@@ -231,6 +242,7 @@ interface IEscrowFactory {
     function usdc() external view returns (address);
     function feeRecipient() external view returns (address);
     function protocolFeeBps() external view returns (uint16);
+    function creationPaused() external view returns (bool);
 
     function createEscrow(
         address buyer,
@@ -239,8 +251,15 @@ interface IEscrowFactory {
         bytes32 metadataHash,
         MilestoneConfig[] calldata milestones
     ) external returns (address escrow);
+
+    function pauseCreation() external;
+    function unpauseCreation() external;
 }
 ```
+
+Implementation note:
+- if these pause functions are included, they should be protected by a narrow admin role such as `owner` or `guardian`
+- this role must not have any authority over live escrow settlement logic
 
 ## 8.2 `MilestoneEscrow`
 
@@ -295,6 +314,7 @@ Effects:
 
 Reverts on:
 - unauthorized caller
+- factory creation paused
 - wrong milestone id
 - wrong state
 - active dispute
@@ -537,6 +557,7 @@ error InvalidMilestoneAmount();
 error InvalidReviewWindow();
 error InvalidFeeBps();
 error InvalidMetadataHash();
+error CreationPaused();
 
 error Unauthorized();
 error InvalidDealState();
@@ -626,16 +647,17 @@ Not allowed:
 The contract test suite should include, at minimum:
 
 1. escrow creation validation tests
-2. happy-path funding, submission, approval, payout
-3. timeout path and seller claim
-4. dispute path with full buyer refund
-5. dispute path with full seller payout
-6. dispute path with partial split
-7. unauthorized caller tests for every state-changing function
-8. sequencing enforcement tests
-9. exact boundary tests at review deadline
-10. fee accounting tests
-11. invariant or property tests for fund conservation and terminal states
+2. factory creation pause tests
+3. happy-path funding, submission, approval, payout
+4. timeout path and seller claim
+5. dispute path with full buyer refund
+6. dispute path with full seller payout
+7. dispute path with partial split
+8. unauthorized caller tests for every state-changing function
+9. sequencing enforcement tests
+10. exact boundary tests at review deadline
+11. fee accounting tests
+12. invariant or property tests for fund conservation and terminal states
 
 ## 19. Non-Goals For Contract MVP
 
