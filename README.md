@@ -1,0 +1,86 @@
+# Milestack
+
+Milestack is a non-custodial milestone escrow platform for digital work on Ethereum L2s.
+
+It is designed for cases where buyers and sellers do not fully trust each other, especially in cross-border work. Funds are held in smart contracts, not by the platform. Sellers submit milestone deliverables, buyers approve or dispute within a review window, and sellers can claim payment after timeout if buyers stay silent.
+
+## Why This Exists
+
+Digital work has two persistent trust failures:
+- buyers do not want to prepay and risk no delivery
+- sellers do not want to deliver and risk non-payment
+
+Milestack uses smart contracts to enforce payout rules without requiring platform custody.
+
+## Core Product Idea
+
+Milestack turns service agreements into milestone-based escrows funded in stablecoins.
+
+Normal flow:
+1. Seller creates a deal with milestones.
+2. Buyer funds a milestone.
+3. Seller submits work with evidence.
+4. Buyer approves or disputes during a review window.
+5. If the buyer is silent, the seller can claim after timeout.
+
+Dispute flow:
+1. Buyer opens a dispute before the review window ends.
+2. The disputed milestone is frozen.
+3. A named arbiter resolves the dispute.
+4. Funds are paid to the buyer, seller, or split between both.
+
+## Initial Wedge
+
+The first target segment is crypto-native agencies and international digital service providers doing milestone-based work in the $2k-$25k range.
+
+Why this segment:
+- they already use milestones
+- cross-border payment friction is real
+- stablecoin payments are acceptable
+- trust risk is meaningful enough to justify escrow
+
+## Product Principles
+
+- No platform custody
+- Explicit milestone states
+- Timeout-based release path to prevent payment stalling
+- Bounded human judgment only for disputes
+- Reputation based on real deal outcomes, not vanity metrics
+- Minimal MVP focused on one L2 and USDC
+
+## Repository Layout
+
+- `PRODUCT_SPEC.md`: product and market spec
+- `docs/TECHNICAL_ARCHITECTURE.md`: contract and frontend architecture
+- `contracts/`: smart contract implementation
+- `web/`: frontend application
+
+## Current Docs
+
+- Product spec: [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md)
+- Technical architecture: [`docs/TECHNICAL_ARCHITECTURE.md`](./docs/TECHNICAL_ARCHITECTURE.md)
+
+## MVP Summary
+
+In scope:
+- one Ethereum L2
+- USDC only
+- wallet-to-wallet deals
+- milestone funding, submission, approval, dispute, and timeout claim
+- one named arbiter per deal
+- basic buyer and seller reputation
+
+Out of scope:
+- fiat rails
+- marketplace discovery
+- multi-chain support
+- complex oracle verification
+- fully decentralized court systems
+
+## Near-Term Build Plan
+
+1. Finalize contract data model and milestone state transitions.
+2. Implement `EscrowFactory` and `MilestoneEscrow` contracts.
+3. Build a thin frontend for deal creation, funding, submission, and dispute handling.
+4. Add indexing and event-driven timeline views.
+5. Validate the core flow with a narrow first-user segment.
