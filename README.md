@@ -61,6 +61,10 @@ Why this segment:
 
 - Product spec: [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md)
 - Technical architecture: [`docs/TECHNICAL_ARCHITECTURE.md`](./docs/TECHNICAL_ARCHITECTURE.md)
+- State machine: [`docs/STATE_MACHINE.md`](./docs/STATE_MACHINE.md)
+- Data model: [`docs/DATA_MODEL.md`](./docs/DATA_MODEL.md)
+- Threat model: [`docs/THREAT_MODEL.md`](./docs/THREAT_MODEL.md)
+- User flows: [`docs/USER_FLOWS.md`](./docs/USER_FLOWS.md)
 
 ## MVP Summary
 
