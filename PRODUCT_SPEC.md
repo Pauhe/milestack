@@ -127,6 +127,21 @@ Why this niche:
 3. Client reviews and accepts the deal.
 4. Client funds milestone 1, or optionally funds all milestones.
 
+### MVP defaults
+
+The MVP should make a small number of non-optional decisions so product and contract behavior stay predictable:
+- chain: Base
+- payment asset: USDC only
+- escrow shape: one escrow contract per deal
+- dispute model: named human arbiter per deal
+- milestone ordering: milestones are sequential
+- milestone progression: a disputed milestone pauses later milestones
+- settlement path: mutual settlement is post-MVP, not required for first release
+- arbiter sourcing: buyer and seller choose the arbiter themselves in MVP
+- metadata storage: detailed terms live offchain and are referenced by hash onchain
+
+These defaults reduce implementation ambiguity and prevent the MVP from becoming a generalized marketplace before the core escrow flow is proven.
+
 ### Milestone execution
 
 1. Milestone is funded.
@@ -222,6 +237,14 @@ Milestones must be specific enough for a client to review and for an arbiter to 
 - Terminal states cannot be reopened
 - One formal dispute per milestone
 - Future milestones are paused while a disputed milestone is unresolved
+- Only the next sequential milestone may be funded or submitted in MVP
+- Approval, timeout claim, and dispute resolution all immediately settle funds for that milestone
+
+### Deal completion rule
+
+The deal should be considered `Completed` only when every milestone is in a terminal state and there are no funds left under contract control except protocol fees awaiting withdrawal if that pattern is used.
+
+The deal should be considered `Cancelled` only when all funded milestones have either been refunded or settled and all unfunded milestones have been explicitly cancelled.
 
 ## 11. Dispute Model
 
@@ -266,6 +289,26 @@ Milestack should distinguish between:
 - formal disputes
 
 Revision requests do not alter contract state. Formal disputes do.
+
+### Dispute window rules
+
+To avoid ambiguous timing behavior, the MVP should define these hard rules:
+- the review window begins at the seller's submission timestamp
+- the buyer may dispute at any point before the review deadline
+- once the review deadline passes without dispute, the seller may claim
+- approval before the deadline immediately releases funds and closes the milestone
+- a buyer who misses the dispute window loses the right to block payout for that submission
+
+### Evidence expectations
+
+The contract should only store compact evidence references, but the product should require each submission to include at least one evidence item reference. For MVP, accepted evidence types can be:
+- URL
+- IPFS CID or content hash
+- Git commit or pull request link
+- Figma link
+- document link
+
+The platform should also require a short plain-language submission note so the buyer and arbiter have immediate context without parsing raw hashes.
 
 ## 12. Failure Modes And Prevention
 
@@ -373,14 +416,29 @@ Users should have separate:
 - should not auto-resolve disputes
 - should not be easy to game with likes or meaningless endorsements
 
+### MVP reputation display
+
+For the first release, reputation should favor transparent raw stats over a hidden composite score.
+
+Recommended initial profile fields:
+- completed deals count
+- completed milestones count
+- total settled seller volume
+- total refunded buyer volume
+- dispute count
+- dispute outcome breakdown
+- cancellation count
+
+This is easier to trust than a black-box trust score and easier to iterate before enough data exists to justify heavier scoring logic.
+
 ## 14. MVP Scope
 
 ### In scope
 
-- one Ethereum L2
+- Base only
 - USDC only
 - wallet-to-wallet deals
-- milestone-based escrows
+- milestone-based escrows with sequential milestone progression
 - seller submission with evidence hash or URI
 - buyer approve or dispute
 - timeout-based seller claim
@@ -388,6 +446,8 @@ Users should have separate:
 - split-capable dispute resolution
 - basic deal and milestone timeline UI
 - basic reputation from completed deals and disputes
+- offchain deal metadata with onchain hash reference
+- event-indexed activity and reputation backend
 
 ### Out of scope
 
@@ -402,6 +462,20 @@ Users should have separate:
 - fully decentralized court systems
 - complex oracle-based deliverable verification
 - gas sponsorship for MVP
+- platform-supplied arbitration network
+- milestone mutual settlement flow
+- onchain storage of full deal text and attachments
+
+### Explicit MVP constraints
+
+The MVP should intentionally avoid these tempting expansions:
+- no role abstraction beyond buyer, seller, and arbiter
+- no partial milestone funding
+- no milestone edits after buyer acceptance
+- no support for multiple sellers or multiple buyers in one deal
+- no milestone dependency graphs beyond simple ordering
+
+These are valid future features, but they should not shape the first contract design.
 
 ## 15. Why This Is Better Than A Generic Prediction Market
 
@@ -418,6 +492,14 @@ Milestack is stronger than a generic decentralized prediction market for startup
 
 - EscrowFactory
 - MilestoneEscrow
+
+### Architectural decisions locked for MVP
+
+- one escrow contract per deal
+- direct contract deployments are acceptable for MVP; clone optimization is optional later
+- immutable buyer, seller, arbiter, token, fee recipient, and fee basis points at escrow creation time
+- milestone count and milestone amounts are fixed at creation time
+- only unfunded milestones may be cancelled
 
 ### EscrowFactory responsibilities
 
@@ -446,9 +528,11 @@ Milestack is stronger than a generic decentralized prediction market for startup
 Each milestone stores:
 - amount
 - status
+- review window seconds
 - submission timestamp
 - review deadline
 - evidence URI or hash
+- dispute reason URI or hash
 - payout allocation after resolution if disputed
 
 ### Core functions
@@ -461,6 +545,16 @@ Each milestone stores:
 - openDispute(uint256 milestoneId, bytes32 disputeReasonHash or URI reference)
 - resolveDispute(uint256 milestoneId, uint256 buyerAmount, uint256 sellerAmount)
 - cancelUnfundedMilestones()
+
+### Acceptance criteria for contract MVP
+
+The initial contract implementation should be considered complete only if it satisfies all of the following:
+- a funded milestone cannot be skipped in favor of a later milestone
+- a valid dispute blocks timeout claim on the same milestone
+- approval, claim, and resolution each leave the milestone in a terminal state
+- only the intended role can call each state-changing function
+- fee handling is deterministic and auditable
+- all terminal payout paths preserve fund conservation
 
 ### Design principles
 
@@ -488,6 +582,8 @@ Each milestone stores:
 - plain-English event history
 - clear display of locked, claimable, and released funds
 - clear explanation that disputes pause ordinary payout flow
+- strong explanation that arbitration is human and pre-selected, not algorithmic
+- visible warning when a dispute on an early milestone blocks later milestones
 
 ### UX philosophy
 
@@ -497,7 +593,7 @@ Milestack should feel like a contract workflow product, not a casino, marketplac
 
 ### Initial chain
 
-Base or Arbitrum
+Base
 
 Reasoning:
 - Ethereum-aligned
@@ -536,6 +632,12 @@ Alternative later models:
 - simple for users to understand
 - avoids platform custody
 
+### Fee policy recommendation
+
+The MVP should apply protocol fees only to seller-side payout amounts and should not charge protocol fees on buyer refunds.
+
+This keeps incentives cleaner in disputes and makes fee behavior easier to explain.
+
 ## 20. Main Risks
 
 ### Product risks
@@ -566,21 +668,28 @@ Alternative later models:
 
 ## 22. Open Questions
 
-- Should future milestones be fundable while an earlier one is disputed?
-- Should mutual settlement be included in MVP or shortly after?
-- Should Milestack itself provide arbiters, or should arbiters be purely user-selected?
-- Should there be one escrow contract per deal or per milestone?
+- What is the best default review window: 3 days, 5 days, or 7 days?
+- Should the MVP allow upfront funding of all milestones in addition to sequential funding?
+- Should seller submissions support multiple evidence references per milestone from day one, or just one canonical reference plus note?
 - How much metadata should live onchain versus by URI or hash reference?
-- How should reputation be displayed: raw stats, score, or both?
 - Which first vertical is strongest: agencies, crypto contributor payments, or creator sponsorships?
+
+### Decisions already made
+
+These questions are no longer open for MVP:
+- future milestones are paused while an earlier one is disputed
+- mutual settlement is post-MVP
+- arbiters are user-selected, not platform-assigned
+- the contract model is one escrow per deal
+- reputation is displayed primarily as raw stats in MVP
 
 ## 23. Suggested Roadmap
 
 ### Phase 1: product definition
 
-- finalize milestone lifecycle
-- finalize dispute policy
-- define deal and milestone data model
+- lock default review window and metadata shape
+- define milestone template guidance for agencies
+- define precise event schema for backend indexing
 - define first-user segment precisely
 
 ### Phase 2: contract MVP
@@ -589,6 +698,7 @@ Alternative later models:
 - implement core milestone transitions
 - add comprehensive tests for edge cases
 - verify dispute and timeout logic
+- verify fee behavior and fund conservation with invariant-style tests
 
 ### Phase 3: frontend MVP
 
@@ -597,6 +707,7 @@ Alternative later models:
 - fund and submit flow
 - approve or dispute flow
 - timeline and reputation views
+- add explanatory UX around dispute timing, arbiter role, and milestone blocking
 
 ### Phase 4: launch wedge
 

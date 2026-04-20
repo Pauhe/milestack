@@ -46,7 +46,9 @@ Why this segment:
 - Timeout-based release path to prevent payment stalling
 - Bounded human judgment only for disputes
 - Reputation based on real deal outcomes, not vanity metrics
-- Minimal MVP focused on one L2 and USDC
+- Minimal MVP focused on Base and USDC
+- Sequential milestones only in the first release
+- User-selected arbiters, not a platform arbitration network
 
 ## Repository Layout
 
@@ -63,11 +65,13 @@ Why this segment:
 ## MVP Summary
 
 In scope:
-- one Ethereum L2
+- Base only
 - USDC only
 - wallet-to-wallet deals
 - milestone funding, submission, approval, dispute, and timeout claim
 - one named arbiter per deal
+- sequential milestone progression
+- offchain deal metadata with onchain hash references
 - basic buyer and seller reputation
 
 Out of scope:
@@ -76,11 +80,13 @@ Out of scope:
 - multi-chain support
 - complex oracle verification
 - fully decentralized court systems
+- mutual settlement flow in v1
+- platform-managed arbiter marketplace
 
 ## Near-Term Build Plan
 
-1. Finalize contract data model and milestone state transitions.
-2. Implement `EscrowFactory` and `MilestoneEscrow` contracts.
-3. Build a thin frontend for deal creation, funding, submission, and dispute handling.
-4. Add indexing and event-driven timeline views.
-5. Validate the core flow with a narrow first-user segment.
+1. Implement `MilestoneEscrow` with a minimal sequential state machine.
+2. Add tests for valid paths, invalid transitions, deadlines, and fund conservation.
+3. Implement `EscrowFactory` and event indexing.
+4. Build the create-deal, deal overview, milestone action, and dispute screens.
+5. Validate the full flow with a narrow first-user segment on Base testnet.

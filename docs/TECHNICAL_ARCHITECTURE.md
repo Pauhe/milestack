@@ -71,6 +71,20 @@ Reasoning:
 - easier to pause future milestones when one is disputed
 - lower coordination overhead than per-milestone contracts
 
+### 3.4 Decisions locked for MVP
+
+The following decisions should be treated as fixed for the first implementation pass:
+- single-chain deployment on Base
+- one ERC-20 token, configured as USDC
+- one escrow contract per deal
+- sequential milestones only
+- no milestone edits after escrow creation
+- no platform admin override on milestone state
+- user-selected arbiter per deal
+- reputation computed offchain from events
+
+These constraints are important because they keep the contract state machine narrow and make test coverage tractable.
+
 ## 4. Smart Contract Architecture
 
 ### 4.1 Contract set
@@ -102,6 +116,12 @@ Suggested constructor/config values:
 - protocol fee recipient
 - protocol fee basis points
 - optional implementation address if cloning is used
+
+Recommended MVP approach:
+- start with direct deployment from the factory
+- postpone clone optimization until deployment costs become a practical issue
+
+This reduces moving parts and simplifies debugging and verification during early development.
 
 Key events:
 - `EscrowCreated(escrow, seller, buyer, arbiter, token, milestoneCount, metadataHash)`
@@ -136,6 +156,11 @@ Suggested deal statuses:
 - `Completed`
 - `Cancelled`
 
+Recommended lifecycle simplification:
+- `Draft` should only exist before the first successful funding
+- once any milestone is funded, the deal becomes `Active`
+- the onchain contract does not need an elaborate negotiation state machine; buyer acceptance can be represented by funding
+
 ### 4.4 Milestone data model
 
 Each milestone should include:
@@ -148,6 +173,39 @@ Each milestone should include:
 - `disputeHash`
 - `buyerAward`
 - `sellerAward`
+
+Recommended struct boundaries:
+- keep only contract-critical data onchain
+- store user-facing text offchain in deal metadata
+- use fixed-size values where practical to reduce gas and simplify tests
+
+Suggested onchain layout by concern:
+
+`DealConfig`
+- buyer
+- seller
+- arbiter
+- token
+- feeRecipient
+- protocolFeeBps
+- metadataHash
+
+`Milestone`
+- amount
+- status
+- reviewWindowSeconds
+- submittedAt
+- reviewDeadline
+- evidenceHash
+- disputeHash
+- buyerAward
+- sellerAward
+
+`DealRuntime`
+- currentMilestoneIndex
+- activeDisputeMilestoneId or sentinel value
+- totalReleasedToSeller
+- totalRefundedToBuyer
 
 Suggested milestone status enum:
 - `PendingFunding`
@@ -182,6 +240,21 @@ Critical invariants:
 - only submitted milestones can be approved or disputed
 - future milestones are blocked while any milestone is disputed
 - dispute resolution amounts must sum exactly to milestone amount minus any fee treatment defined for disputed payouts
+- only the current milestone index may transition out of pre-terminal active states in MVP
+- `reviewDeadline` must be derived from `submittedAt + reviewWindowSeconds`
+- contract balance plus distributed funds must always equal total funded amount
+
+### 4.5.1 Recommended lifecycle implementation
+
+The simplest valid implementation for MVP is:
+
+1. Create escrow with full milestone configuration.
+2. Allow funding only for the next unfunded milestone, unless `fundAllMilestones()` is explicitly invoked.
+3. Allow submission only for the next funded unresolved milestone.
+4. Freeze all later milestone actions while one milestone is in `Disputed`.
+5. Mark the deal `Completed` when all milestones are terminal.
+
+This avoids dependency graphs, out-of-order execution, and cross-milestone ambiguity.
 
 ### 4.6 Public functions
 
@@ -197,6 +270,11 @@ Recommended core functions:
 
 Optional but likely useful:
 - `settleDispute(uint256 milestoneId, uint256 buyerAmount, uint256 sellerAmount)` requiring both buyer and seller signatures or sequential acceptance
+
+Recommended MVP exclusions:
+- do not implement `settleDispute` in the first contract pass
+- do not implement milestone editing or milestone deletion after creation
+- do not implement arbitrary third-party callers or delegated role permissions
 
 ### 4.7 Access control rules
 
@@ -231,6 +309,12 @@ Recommended MVP rule:
 - deduct fee only from seller-side payouts
 - no fee on buyer refunds
 
+Implementation notes:
+- use OpenZeppelin `SafeERC20`
+- update state before external token transfers
+- emit payout events after successful transfers
+- fail the transaction on any transfer failure rather than trying to continue partially
+
 ### 4.9 Events
 
 Events are critical because the web app and reputation layer should be mostly event-driven.
@@ -245,6 +329,11 @@ Suggested events:
 - `DisputeResolved(milestoneId, buyerAmount, sellerAmount)`
 - `MilestoneCancelled(milestoneId)`
 - `DealCompleted()`
+
+Recommended event design rules:
+- every state transition that matters to the UI should have a dedicated event
+- include enough data for the indexer to compute timeline entries without additional chain calls where possible
+- avoid events that imply states the contract does not explicitly track
 
 ## 5. Contract Security Model
 
@@ -274,6 +363,16 @@ Suggested events:
 - use custom errors and invariant-driven tests
 - add property tests for impossible transitions and fund conservation
 
+### 5.4 Security review checklist for implementation
+
+Before considering the contract MVP ready, verify:
+- no caller can release or refund a milestone outside its allowed role
+- disputes cannot be opened after the review deadline
+- claims cannot happen before the review deadline
+- disputes cannot be reopened after resolution
+- fee deductions cannot exceed seller-side payout amounts
+- funded amounts cannot become stranded through cancellation paths
+
 ## 6. Metadata Strategy
 
 The contract should not store verbose milestone descriptions or large evidence payloads.
@@ -282,6 +381,22 @@ Recommended approach:
 - store human-readable deal terms offchain
 - reference them with a content hash or URI hash onchain
 - store milestone evidence as hash references onchain
+
+Recommended MVP metadata split:
+
+Onchain:
+- metadata hash
+- evidence hash
+- dispute hash
+
+Offchain:
+- milestone names and descriptions
+- full service agreement text
+- file URLs and attachments
+- revision notes
+- plain-language dispute explanation
+
+The frontend should validate that offchain metadata hashes to the onchain reference before presenting it as canonical.
 
 Possible metadata contents:
 - milestone descriptions
@@ -341,6 +456,22 @@ Core tables or equivalents:
 - `users`
 - `reputation_snapshots`
 
+Recommended additional tables or materialized views:
+- `milestone_timeline_entries`
+- `user_role_stats`
+- `open_disputes`
+
+Operational responsibilities:
+- backfill events from deployment block
+- keep an idempotent event processor
+- handle chain reorgs conservatively
+- recompute derived reputation metrics from source events when needed
+
+Recommended MVP backend boundaries:
+- no custody or privileged signing
+- no backend-dependent settlement logic
+- backend is a read and aggregation layer only
+
 ## 9. Frontend Architecture
 
 ### 9.1 Stack recommendation
@@ -351,6 +482,11 @@ Recommended stack:
 - wagmi
 - viem
 - a minimal component system, likely Tailwind plus a small internal UI layer
+
+Recommended frontend posture:
+- server-render read-heavy pages where useful
+- keep wallet-connected state transitions in focused client components
+- avoid over-abstracting until the deal and milestone flows stabilize
 
 Reasoning:
 - good wallet integration ecosystem
@@ -374,6 +510,11 @@ Reasoning:
 - explain when funds are locked, claimable, released, or disputed
 - make dispute and revision concepts visually distinct
 
+Critical UX copy requirements:
+- explain that silence after the review window allows seller claim
+- explain that disputes require a human arbiter decision
+- explain that later milestones are blocked while a dispute is unresolved
+
 ### 9.4 Create deal flow
 
 User inputs:
@@ -389,6 +530,13 @@ Recommended UX:
 - total amount validation
 - strong copy around what disputes mean
 
+Recommended validations:
+- every milestone amount must be positive
+- total milestone amount must match the displayed deal total
+- review window must be within allowed bounds
+- buyer, seller, and arbiter addresses must be distinct unless intentionally permitted
+- at least one milestone must exist
+
 ### 9.5 Deal overview page
 
 Must show:
@@ -399,6 +547,11 @@ Must show:
 - claimable amount
 - dispute status
 - event timeline
+
+Should also show:
+- currently actionable milestone
+- blocked reason if later milestones cannot proceed
+- protocol fee treatment in payout summaries
 
 ### 9.6 Milestone detail page
 
@@ -419,6 +572,8 @@ Must show:
 - arbiter identity
 - final resolution when present
 
+If the connected wallet is the arbiter, the page should also show a narrow resolution interface that makes split outcomes explicit and validates that the resolution amounts sum correctly.
+
 ## 10. API Shape
 
 Even if the app is primarily event-driven, a small backend API is useful.
@@ -429,6 +584,14 @@ Suggested endpoints:
 - `GET /users/:address/reputation`
 - `GET /users/:address/activity`
 - `GET /disputes/:escrowAddress/:milestoneId`
+
+Recommended additional endpoint:
+- `GET /escrows/:address/timeline`
+
+Suggested response shape principles:
+- return both raw chain-derived state and UI-friendly derived fields
+- include role-aware action hints where cheap to compute
+- treat backend data as a convenience layer, not the source of settlement truth
 
 Later additions:
 - signed metadata upload endpoints
@@ -455,6 +618,8 @@ Important invariants:
 - disputed milestones cannot be claimed by timeout
 - terminal milestones cannot transition again
 - only the permitted role can invoke each action
+- later milestones cannot advance while an earlier one is disputed
+- fee recipient plus buyer payouts plus seller payouts equals total funded amount across completed scenarios
 
 ### 11.3 Frontend tests
 
@@ -464,6 +629,11 @@ At minimum:
 - countdown and deadline display logic
 - API integration for timelines and reputation
 
+Recommended additional tests:
+- create-deal form validation
+- milestone blocking explanation rendering
+- dispute resolution amount validation in arbiter UI
+
 ## 12. Deployment Plan
 
 ### Phase 1
@@ -472,6 +642,7 @@ At minimum:
 - wire event indexing
 - build internal operator UI for test deals
 - validate milestone and dispute flows manually
+- run contract tests and invariant suite in CI before any testnet deployment
 
 ### Phase 2
 
@@ -496,18 +667,28 @@ At minimum:
 
 ## 14. Open Technical Decisions
 
-- whether to use direct deployment or minimal proxy clones for escrows
-- whether mutual settlement belongs in MVP or immediate post-MVP
+- whether `fundAllMilestones()` belongs in the first release or shortly after
 - how much metadata should be hashed onchain versus stored by URI reference
 - whether the initial backend should be fully custom or The Graph-backed
 - whether protocol fees should be configurable at factory deployment or immutable per deployment
 
+### Decisions already made
+
+The following are no longer open for MVP:
+- direct deployment is acceptable and preferred initially
+- mutual settlement is post-MVP
+- one escrow contract per deal is the chosen model
+- Base is the initial deployment target
+- reputation is offchain and event-derived
+
 ## 15. Recommended First Implementation Order
 
-1. Define contract structs, enums, and invariants.
-2. Implement `MilestoneEscrow` with the smallest valid state machine.
-3. Implement `EscrowFactory` and escrow creation events.
-4. Write comprehensive contract tests before frontend integration.
-5. Build the deal overview and milestone action UI.
-6. Add indexing and reputation computation.
-7. Run end-to-end tests against a testnet deployment.
+1. Define contract structs, enums, custom errors, and invariants.
+2. Implement `MilestoneEscrow` with sequential milestone enforcement.
+3. Write unit tests for every valid and invalid state transition.
+4. Add invariant or property tests for fund conservation and terminal-state behavior.
+5. Implement `EscrowFactory` and creation events.
+6. Build the indexer and derive escrow timelines from events.
+7. Build the deal overview and milestone action UI.
+8. Add create-deal flow and dispute-resolution UI.
+9. Run end-to-end tests against Base testnet.
