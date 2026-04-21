@@ -121,7 +121,30 @@ PRIVATE_KEY=0x... \
 ./scripts/deploy-factory-and-write-manifest.sh
 ```
 
+By default this writes to `deployments/rehearsal-local/manifest.json`. To target another environment, set `DEPLOY_ENVIRONMENT` explicitly.
+
 This will:
 1. run the Foundry factory deployment script
 2. read the latest broadcast output
 3. write `deployments/<environment>/manifest.json`
+
+## 11. Rehearsal Bootstrap Path
+
+To generate deterministic rehearsal fixtures for happy/timeout/dispute journeys:
+
+```bash
+./scripts/rehearsal-stack.sh
+```
+
+This script:
+1. refreshes the rehearsal manifest (unless `SKIP_FACTORY_DEPLOY=1`)
+2. writes deterministic seeded journeys to `deployments/rehearsal-local/seeded-journeys.json`
+3. prints phase-based logs (`phase=deploy-manifest`, `phase=seed-data`) for startup troubleshooting
+
+To run app servers against rehearsal manifests:
+
+```bash
+DEPLOY_ENVIRONMENT=rehearsal-local ./scripts/dev-stack.sh
+```
+
+The startup logs print the backend `DEPLOYMENT_ENV` and web `NEXT_PUBLIC_DEPLOYMENT_ENV` so environment provenance is inspectable during rehearsals.

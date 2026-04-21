@@ -1,18 +1,31 @@
 import localManifest from "../../deployments/local/manifest.json" with { type: "json" };
+import rehearsalLocalManifest from "../../deployments/rehearsal-local/manifest.json" with { type: "json" };
 
 export type DeploymentManifest = typeof localManifest;
 
 const manifests = {
   local: localManifest,
+  "rehearsal-local": rehearsalLocalManifest,
 } as const satisfies Record<string, DeploymentManifest>;
 
-export function getDeploymentEnvironment() {
-  return process.env.DEPLOYMENT_ENV ?? "local";
+export type DeploymentEnvironment = keyof typeof manifests;
+
+export function getDeploymentEnvironment(): DeploymentEnvironment {
+  const environment = process.env.DEPLOYMENT_ENV ?? "local";
+
+  if (!(environment in manifests)) {
+    const supported = Object.keys(manifests).join(", ");
+    throw new Error(
+      `Unsupported DEPLOYMENT_ENV \"${environment}\". Supported environments: ${supported}`
+    );
+  }
+
+  return environment as DeploymentEnvironment;
 }
 
 export function getDeploymentManifest(): DeploymentManifest {
   const environment = getDeploymentEnvironment();
-  return manifests[environment as keyof typeof manifests] ?? localManifest;
+  return manifests[environment];
 }
 
 export const deploymentManifest = getDeploymentManifest();

@@ -30,7 +30,12 @@ sleep 3
 printf 'Triggering backend sync\n'
 curl --fail --silent --show-error -X POST "http://localhost:4000/sync" >/dev/null
 
-printf 'Starting web on http://localhost:3000\n'
+printf 'Starting web on http://localhost:3000 (NEXT_PUBLIC_DEPLOYMENT_ENV=%s)\n' "${NEXT_PUBLIC_DEPLOYMENT_ENV}"
+cd "${ROOT_DIR}/web"
+export NEXT_PUBLIC_BACKEND_URL="http://localhost:4000"
+export NEXT_PUBLIC_DEPLOYMENT_ENV
+npm run dev
+ 'Starting web on http://localhost:3000\n'
 cd "${ROOT_DIR}/web"
 export NEXT_PUBLIC_BACKEND_URL="http://localhost:4000"
 npm run dev

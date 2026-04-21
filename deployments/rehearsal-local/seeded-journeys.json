@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "environment": "rehearsal-local",
+  "generatedAt": "2026-04-21T21:58:56.388Z",
+  "baseTimestamp": "2026-04-21T00:00:00.000Z",
+  "defaults": {
+    "reviewWindowSeconds": 432000,
+    "metadataVisibility": "public"
+  },
+  "participants": {
+    "buyer": "0x10000000000000000000000000000000000000a1",
+    "seller": "0x10000000000000000000000000000000000000b1",
+    "arbiter": "0x10000000000000000000000000000000000000c1",
+    "token": "0x10000000000000000000000000000000000000d1"
+  },
+  "journeys": {
+    "happyPath": {
+      "escrowAddress": "0x1000000000000000000000000000000000000101",
+      "dealId": "rehearsal-happy-001",
+      "milestoneId": 0,
+      "events": [
+        "EscrowCreated",
+        "MilestoneFunded",
+        "MilestoneSubmitted",
+        "MilestoneApproved",
+        "MilestoneClaimed"
+      ]
+    },
+    "timeoutPath": {
+      "escrowAddress": "0x1000000000000000000000000000000000000202",
+      "dealId": "rehearsal-timeout-001",
+      "milestoneId": 0,
+      "events": [
+        "EscrowCreated",
+        "MilestoneFunded",
+        "MilestoneSubmitted",
+        "MilestoneClaimed"
+      ]
+    },
+    "disputePath": {
+      "escrowAddress": "0x1000000000000000000000000000000000000303",
+      "dealId": "rehearsal-dispute-001",
+      "milestoneId": 0,
+      "events": [
+        "EscrowCreated",
+        "MilestoneFunded",
+        "MilestoneSubmitted",
+        "MilestoneDisputed",
+        "DisputeResolved"
+      ]
+    }
+  }
+}
