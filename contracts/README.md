@@ -53,10 +53,13 @@ forge test --root contracts --match-contract MilestoneEscrowInvariantTest
   - Full contracts sweep (unit + fuzz + invariant) and the fastest regression localization starting point.
 - `--match-contract MilestoneEscrowSubmissionTest`
   - Lifecycle behavior and negative paths: role gating, sequence rules, deadline edges, dispute open/resolve, cancellation gating, transfer-failure reverts, and terminal status transitions.
+  - Deterministic adversarial regressions for hardening edges found during fuzz/invariant work: dispute-pointer clearing after resolution (unblocking next-milestone progression) and post-settlement cancellation locking later milestone actions.
 - `--match-contract MilestoneEscrowFuzzTest`
   - Accounting and terminal-state properties under bounded randomized inputs for approve/claim/dispute-resolution flows.
+  - Two-milestone adversarial sequencing with conservation checks (`escrow balance + released + refunded + fees == totalFunded`) plus post-resolution cancellation/terminal-state enforcement.
 - `--match-contract MilestoneEscrowInvariantTest`
   - Global safety properties under adversarial call sequencing: fund conservation, active-dispute/state alignment, and monotonic milestone index progression.
+  - Completed/cancelled terminal boundary checks and active-dispute pointer exclusivity/clearing invariants.
 
 ### Runtime diagnostics and semantic boundary notes
 

@@ -729,6 +729,33 @@ contract MilestoneEscrowSubmissionTest is Test {
         assertEq(token.balanceOf(address(escrow)), 0);
     }
 
+    function testResolveDisputeClearsPointerAndUnblocksNextMilestoneProgression() public {
+        MilestoneEscrow anotherEscrow = _deployEscrow();
+
+        vm.prank(BUYER);
+        token.approve(address(anotherEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        anotherEscrow.fundAllMilestones();
+
+        vm.prank(SELLER);
+        anotherEscrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        anotherEscrow.openDispute(0, DISPUTE_HASH);
+
+        vm.prank(ARBITER);
+        anotherEscrow.resolveDispute(0, 400e6, 600e6);
+
+        assertEq(anotherEscrow.activeDisputeMilestoneId(), type(uint256).max);
+        assertEq(anotherEscrow.currentMilestoneIndex(), 1);
+
+        vm.prank(SELLER);
+        anotherEscrow.submitMilestone(1, keccak256("milestone-1-evidence"));
+
+        assertEq(uint256(anotherEscrow.getMilestone(1).status), uint256(MilestoneStatus.Submitted));
+    }
+
     function testResolveDisputeCompletesDealOnFinalMilestone() public {
         MilestoneEscrow singleMilestoneEscrow = _deploySingleMilestoneEscrow();
 
@@ -879,6 +906,37 @@ contract MilestoneEscrowSubmissionTest is Test {
         assertEq(uint256(milestone0.status), uint256(MilestoneStatus.PaidOut));
         assertEq(uint256(milestone1.status), uint256(MilestoneStatus.Cancelled));
         assertEq(uint256(anotherEscrow.dealStatus()), uint256(DealStatus.Cancelled));
+    }
+
+    function testCancelAfterSettlementLocksFutureMilestoneOperations() public {
+        MilestoneEscrow anotherEscrow = _deployEscrow();
+
+        vm.prank(BUYER);
+        token.approve(address(anotherEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        anotherEscrow.fundMilestone(0);
+
+        vm.prank(SELLER);
+        anotherEscrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        anotherEscrow.approveMilestone(0);
+
+        vm.prank(SELLER);
+        anotherEscrow.cancelUnfundedMilestones();
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        anotherEscrow.fundMilestone(1);
+
+        vm.prank(SELLER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        anotherEscrow.submitMilestone(1, keccak256("cancelled-milestone-evidence"));
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        anotherEscrow.openDispute(1, keccak256("cancelled-milestone-dispute"));
     }
 
     function testNonPartyCannotCancelUnfundedMilestones() public {
