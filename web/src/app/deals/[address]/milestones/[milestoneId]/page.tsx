@@ -14,6 +14,11 @@ import { configuredChain } from "@/lib/chains";
 import { formatTimestamp, formatUsdc } from "@/lib/format";
 import { getMilestoneStatusLabel } from "@/lib/status";
 import { MilestoneActions } from "@/components/milestone-actions";
+import {
+  deriveMilestoneActionSemantics,
+  type MilestoneRole,
+} from "@/lib/milestone-semantics";
+import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 
 type MilestoneDetailPageProps = {
   params: Promise<{
@@ -120,6 +125,35 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
     "dispute"
   );
 
+  const semantics = deriveMilestoneActionSemantics({
+    role: "visitor" as MilestoneRole,
+    status: milestone.status,
+    milestoneId: Number(parsedMilestoneId),
+    currentMilestoneIndex: Number(overview.currentMilestoneIndex),
+    activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
+    derived: backendMilestone?.derived,
+    reviewDeadline: backendMilestone?.review_deadline ?? milestone.reviewDeadline,
+  });
+
+  const disputeRouteHref = `/deals/${escrowAddress}/disputes/${parsedMilestoneId.toString()}`;
+  const guidance = deriveActionPanelGuidance({
+    role: "visitor",
+    isConnected: false,
+    isWrongChain: false,
+    hasCurrentMilestone: true,
+    semantics,
+    disputeRouteHref,
+  });
+
+  const routeGuidance = freshnessAssessment.state === "healthy"
+    ? guidance
+    : {
+        ...guidance,
+        nextStepMessage: `${guidance.nextStepMessage} Backend freshness is ${freshnessAssessment.state}; treat indexed eligibility as conservative until refreshed.`,
+        blockedReason: guidance.blockedReason
+          ?? "Backend freshness is degraded; role actions stay conservative until eligibility truth reloads.",
+      };
+
   return (
     <section className="stack-lg">
       <div className="page-header stack-sm">
@@ -170,6 +204,28 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
           </ul>
         </article>
       </section>
+
+      <article className="panel stack-md" data-testid="milestone-workflow-guidance">
+        <div className="eyebrow">Workflow guidance</div>
+        <h2>Route-to-route progression</h2>
+        <p className="status-text">
+          {routeGuidance.nextStepLabel}: {routeGuidance.nextStepMessage}
+        </p>
+        <ul className="plain-list stack-sm">
+          <li>
+            Milestone route: <a href={`/deals/${escrowAddress}/milestones/${parsedMilestoneId.toString()}`}>/deals/{escrowAddress}/milestones/{parsedMilestoneId.toString()}</a>
+          </li>
+          <li>
+            Dispute route: <a href={disputeRouteHref}>{disputeRouteHref}</a>
+          </li>
+        </ul>
+        {routeGuidance.claimAfterTimeoutHint ? (
+          <p className="status-text">Timeout hint: {routeGuidance.claimAfterTimeoutHint}</p>
+        ) : null}
+        {routeGuidance.blockedReason ? (
+          <p className="status-text">Blocked: {routeGuidance.blockedReason}</p>
+        ) : null}
+      </article>
 
       <article className="panel stack-md">
         <div className="eyebrow">Metadata verification</div>

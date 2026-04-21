@@ -6,6 +6,102 @@ import {
   deriveDisputeResolutionGuidance,
 } from "@/lib/workflow-guidance";
 
+describe("route-level workflow composition", () => {
+  it("keeps overview guidance conservative when backend freshness is degraded", () => {
+    const semantics = deriveMilestoneActionSemantics({
+      role: "visitor",
+      status: 2,
+      milestoneId: 3,
+      currentMilestoneIndex: 3,
+      derived: null,
+    });
+
+    const baseGuidance = deriveActionPanelGuidance({
+      role: "visitor",
+      isConnected: false,
+      isWrongChain: false,
+      hasCurrentMilestone: true,
+      semantics,
+      disputeRouteHref: "/deals/0xabc/disputes/3",
+    });
+
+    const freshnessState = "stale";
+    const routeGuidance = {
+      ...baseGuidance,
+      nextStepMessage: `${baseGuidance.nextStepMessage} Backend freshness is ${freshnessState}; keep actions conservative until indexed eligibility recovers.`,
+      blockedReason:
+        baseGuidance.blockedReason
+        ?? "Backend freshness is degraded; keep role actions blocked until backend-derived eligibility is available.",
+    };
+
+    expect(routeGuidance.nextStepMessage).toContain("Backend freshness is stale");
+    expect(routeGuidance.blockedReason).toContain("Wallet connection is required");
+  });
+
+  it("keeps milestone route guidance linked to dispute resolution route without inventing semantics", () => {
+    const semantics = deriveMilestoneActionSemantics({
+      role: "visitor",
+      status: 5,
+      milestoneId: 8,
+      currentMilestoneIndex: 8,
+      activeDisputeMilestoneId: 8,
+      derived: {
+        isCurrent: true,
+        isBlocked: false,
+        buyerCanApprove: false,
+        buyerCanDispute: false,
+        sellerCanClaim: false,
+      },
+    });
+
+    const guidance = deriveActionPanelGuidance({
+      role: "visitor",
+      isConnected: false,
+      isWrongChain: false,
+      hasCurrentMilestone: true,
+      semantics,
+      disputeRouteHref: "/deals/0xabc/disputes/8",
+    });
+
+    expect(guidance.nextStepLabel).toBe("Next step");
+    expect(guidance.nextStepMessage).toContain("Connect a wallet");
+    expect(guidance.disputeRoute).toBeNull();
+  });
+
+  it("exposes explicit arbiter vs non-arbiter dispute-route blocked messaging", () => {
+    const arbiterWalletMissing = deriveDisputeResolutionGuidance({
+      role: "arbiter",
+      isConnected: false,
+      isWrongChain: false,
+      isBusy: false,
+      milestoneStatus: 5,
+      milestoneId: 6n,
+      activeDisputeMilestoneId: 6n,
+      hasValidBuyerAward: false,
+      hasValidSellerAward: false,
+      isExactSplit: false,
+    });
+
+    const nonArbiter = deriveDisputeResolutionGuidance({
+      role: "visitor",
+      isConnected: false,
+      isWrongChain: false,
+      isBusy: false,
+      milestoneStatus: 5,
+      milestoneId: 6n,
+      activeDisputeMilestoneId: 6n,
+      hasValidBuyerAward: false,
+      hasValidSellerAward: false,
+      isExactSplit: false,
+    });
+
+    expect(arbiterWalletMissing.blockedReason).toContain("designated arbiter wallet");
+    expect(nonArbiter.blockedReason).toContain("designated arbiter wallet");
+    expect(nonArbiter.canSubmitResolution).toBe(false);
+    expect(arbiterWalletMissing.canSubmitResolution).toBe(false);
+  });
+});
+
 describe("deriveActionPanelGuidance", () => {
   it("returns conservative blocked messaging when current milestone is missing", () => {
     const guidance = deriveActionPanelGuidance({

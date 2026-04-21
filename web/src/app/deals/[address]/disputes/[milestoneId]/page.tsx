@@ -18,6 +18,11 @@ import { configuredChain } from "@/lib/chains";
 import { formatTimestamp, formatUsdc } from "@/lib/format";
 import { getMilestoneStatusLabel } from "@/lib/status";
 import { DisputeResolutionForm } from "@/components/dispute-resolution-form";
+import {
+  deriveMilestoneActionSemantics,
+  type MilestoneRole,
+} from "@/lib/milestone-semantics";
+import { deriveActionPanelGuidance, deriveDisputeResolutionGuidance } from "@/lib/workflow-guidance";
 
 type DisputePageProps = {
   params: Promise<{
@@ -124,6 +129,63 @@ export default async function DisputePage({ params }: DisputePageProps) {
     "dispute"
   );
 
+  const semantics = deriveMilestoneActionSemantics({
+    role: "visitor" as MilestoneRole,
+    status: milestone.status,
+    milestoneId: Number(parsedMilestoneId),
+    currentMilestoneIndex: Number(overview.currentMilestoneIndex),
+    activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
+    derived: backendMilestone?.derived,
+    reviewDeadline: backendMilestone?.review_deadline ?? milestone.reviewDeadline,
+  });
+
+  const disputeRouteHref = `/deals/${escrowAddress}/disputes/${parsedMilestoneId.toString()}`;
+  const milestoneRouteHref = `/deals/${escrowAddress}/milestones/${parsedMilestoneId.toString()}`;
+
+  const actionGuidance = deriveActionPanelGuidance({
+    role: "visitor",
+    isConnected: false,
+    isWrongChain: false,
+    hasCurrentMilestone: true,
+    semantics,
+    disputeRouteHref,
+  });
+
+  const arbiterGuidance = deriveDisputeResolutionGuidance({
+    role: "arbiter",
+    isConnected: false,
+    isWrongChain: false,
+    isBusy: false,
+    milestoneStatus: milestone.status,
+    milestoneId: parsedMilestoneId,
+    activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
+    hasValidBuyerAward: false,
+    hasValidSellerAward: false,
+    isExactSplit: false,
+  });
+
+  const visitorGuidance = deriveDisputeResolutionGuidance({
+    role: "visitor",
+    isConnected: false,
+    isWrongChain: false,
+    isBusy: false,
+    milestoneStatus: milestone.status,
+    milestoneId: parsedMilestoneId,
+    activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
+    hasValidBuyerAward: false,
+    hasValidSellerAward: false,
+    isExactSplit: false,
+  });
+
+  const routeGuidance = freshnessAssessment.state === "healthy"
+    ? actionGuidance
+    : {
+        ...actionGuidance,
+        nextStepMessage: `${actionGuidance.nextStepMessage} Backend freshness is ${freshnessAssessment.state}; keep dispute guidance conservative until backend truth recovers.`,
+        blockedReason: actionGuidance.blockedReason
+          ?? "Backend freshness is degraded; dispute actions remain blocked until truth reloads.",
+      };
+
   return (
     <section className="stack-lg">
       <div className="page-header stack-sm">
@@ -169,6 +231,27 @@ export default async function DisputePage({ params }: DisputePageProps) {
           </p>
         </article>
       </section>
+
+      <article className="panel stack-md" data-testid="dispute-workflow-guidance">
+        <div className="eyebrow">Workflow guidance</div>
+        <h2>Dispute route eligibility</h2>
+        <p className="status-text">
+          {routeGuidance.nextStepLabel}: {routeGuidance.nextStepMessage}
+        </p>
+        <ul className="plain-list stack-sm">
+          <li>
+            Milestone route: <a href={milestoneRouteHref}>{milestoneRouteHref}</a>
+          </li>
+          <li>
+            Dispute route: <a href={disputeRouteHref}>{disputeRouteHref}</a>
+          </li>
+        </ul>
+        <p className="status-text">Arbiter wallet guidance: {arbiterGuidance.blockedReason}</p>
+        <p className="status-text">Non-arbiter guidance: {visitorGuidance.blockedReason}</p>
+        {routeGuidance.blockedReason ? (
+          <p className="status-text">Blocked: {routeGuidance.blockedReason}</p>
+        ) : null}
+      </article>
 
       <section className="grid-two">
         <article className="panel stack-md">

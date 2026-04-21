@@ -22,12 +22,75 @@ import { configuredChain } from "@/lib/chains";
 import { formatUsdc } from "@/lib/format";
 import { getDealStatusLabel, getMilestoneStatusLabel } from "@/lib/status";
 import { DealActions } from "@/components/deal-actions";
+import {
+  deriveMilestoneActionSemantics,
+  type MilestoneActionSemantics,
+  type MilestoneRole,
+} from "@/lib/milestone-semantics";
+import { deriveActionPanelGuidance, type ActionPanelGuidance } from "@/lib/workflow-guidance";
 
 type DealOverviewPageProps = {
   params: Promise<{
     address: string;
   }>;
 };
+
+type RouteWorkflowContext = {
+  role: MilestoneRole;
+  semantics: MilestoneActionSemantics | null;
+  guidance: ActionPanelGuidance;
+  milestoneHref: string;
+  disputeHref: string | null;
+};
+
+function deriveRouteWorkflowContext(
+  overview: Awaited<ReturnType<typeof readEscrowOverview>>,
+  backendMilestone: BackendMilestone | undefined,
+  freshnessAssessment: ReturnType<typeof getBackendFreshnessAssessment>
+): RouteWorkflowContext {
+  const milestoneId = Number(overview.currentMilestoneIndex);
+  const milestoneHref = `/deals/${overview.address}/milestones/${milestoneId}`;
+  const disputeHref = `/deals/${overview.address}/disputes/${milestoneId}`;
+
+  const semantics = overview.currentMilestone
+    ? deriveMilestoneActionSemantics({
+        role: "visitor",
+        status: overview.currentMilestone.status,
+        milestoneId,
+        currentMilestoneIndex: milestoneId,
+        activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
+        derived: backendMilestone?.derived,
+        reviewDeadline: backendMilestone?.review_deadline ?? overview.currentMilestone.reviewDeadline,
+      })
+    : null;
+
+  const guidance = deriveActionPanelGuidance({
+    role: "visitor",
+    isConnected: false,
+    isWrongChain: false,
+    hasCurrentMilestone: Boolean(overview.currentMilestone),
+    semantics,
+    disputeRouteHref: semantics?.canResolveDispute ? disputeHref : null,
+  });
+
+  const guidanceWithFreshness =
+    freshnessAssessment.state === "healthy"
+      ? guidance
+      : {
+          ...guidance,
+          nextStepMessage: `${guidance.nextStepMessage} Backend freshness is ${freshnessAssessment.state}; keep actions conservative until indexed eligibility recovers.`,
+          blockedReason: guidance.blockedReason
+            ?? "Backend freshness is degraded; keep role actions blocked until backend-derived eligibility is available.",
+        };
+
+  return {
+    role: "visitor",
+    semantics,
+    guidance: guidanceWithFreshness,
+    milestoneHref,
+    disputeHref,
+  };
+}
 
 export default async function DealOverviewPage({ params }: DealOverviewPageProps) {
   const { address } = await params;
@@ -117,6 +180,11 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
 
   const freshnessBanner = getBackendFreshnessBanner("deal", freshnessAssessment);
   const metadataTruthAssessment = getMetadataTruthAssessment(backendOverview?.truth?.metadata);
+  const workflowContext = deriveRouteWorkflowContext(
+    overview,
+    backendMilestones.find((item) => item.milestone_id === Number(overview.currentMilestoneIndex)),
+    freshnessAssessment
+  );
 
   return (
     <section className="stack-lg">
@@ -182,6 +250,32 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
           )}
         </article>
       </section>
+
+      <article className="panel stack-md" data-testid="deal-workflow-guidance">
+        <div className="eyebrow">Workflow guidance</div>
+        <h2>Traverse the current workflow path</h2>
+        <p className="status-text">
+          {workflowContext.guidance.nextStepLabel}: {workflowContext.guidance.nextStepMessage}
+        </p>
+        <ul className="plain-list stack-sm">
+          <li>
+            Current milestone route: <a href={workflowContext.milestoneHref}>{workflowContext.milestoneHref}</a>
+          </li>
+          <li>
+            Dispute route: {workflowContext.disputeHref ? (
+              <a href={workflowContext.disputeHref}>{workflowContext.disputeHref}</a>
+            ) : (
+              "Not available"
+            )}
+          </li>
+        </ul>
+        {workflowContext.guidance.claimAfterTimeoutHint ? (
+          <p className="status-text">Timeout hint: {workflowContext.guidance.claimAfterTimeoutHint}</p>
+        ) : null}
+        {workflowContext.guidance.blockedReason ? (
+          <p className="status-text">Blocked: {workflowContext.guidance.blockedReason}</p>
+        ) : null}
+      </article>
 
       <article className="panel stack-md">
         <div className="eyebrow">Metadata verification</div>
