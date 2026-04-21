@@ -13,6 +13,7 @@ import {
   setIndexerPublicClient,
   summarizeTimelineEvent,
   deriveActorRole,
+  deriveTimelineTruth,
   syncIndexer,
 } from "./indexer.js";
 import {
@@ -137,6 +138,14 @@ test("timeline claim semantics stay ambiguous when adjacent approval is for a di
     previousPayload: { milestoneId: "0" },
   });
   assert.equal(actorRole, null);
+
+  const truth = deriveTimelineTruth("MilestoneClaimed", {
+    payload: { milestoneId: "1" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(truth.ambiguous, true);
+  assert.equal(truth.payoutAttribution, "seller_timeout_or_unresolved");
 });
 
 test("syncIndexer persists failure state when RPC log discovery fails and keeps last successful checkpoint", async () => {

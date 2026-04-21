@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { db, patchSyncHealthState } from "./db.js";
 import { createApp } from "./index.js";
-import { upsertEscrow, upsertMilestone } from "./repository.js";
+import { insertEvent, upsertEscrow, upsertMetadataCache, upsertMilestone } from "./repository.js";
 import { syncLoopState } from "./sync-loop.js";
 
 const ESCROW_ADDRESS = "0x1000000000000000000000000000000000000001";
@@ -47,6 +47,15 @@ function seedEscrow() {
     totalRefundedToBuyer: "0",
     totalFeesCollected: "0",
     createdAtBlock: "10",
+    updatedAtBlock: "10",
+  });
+
+  upsertMetadataCache({
+    metadataHash: "0xhash",
+    metadataUrl: "mock://verified",
+    verified: true,
+    payloadJson: JSON.stringify({ milestones: [{ id: 0, title: "Title", description: "Description" }] }),
+    error: null,
     updatedAtBlock: "10",
   });
 
@@ -199,31 +208,112 @@ test("derived endpoints attach freshness metadata for fresh, rebuilding, and fai
   }
 });
 
-test("freshness marks stale/no-success boundary conditions without throwing", async () => {
+test("derived endpoints expose metadata/degraded truth payload contracts", async () => {
   resetDb();
   resetLoopState();
   seedEscrow();
 
   patchSyncHealthState({
-    lastAttemptedBlock: 77n,
-    lastAttemptedAt: null,
-    lastSuccessfulBlock: 0n,
-    lastSuccessfulAt: null,
-    chainHeadSeen: 77n,
-    lagBlocks: 77n,
-    phase: "discover_logs",
-    status: "idle",
+    lastAttemptedBlock: 120n,
+    lastAttemptedAt: "2026-02-01T00:02:00.000Z",
+    lastSuccessfulBlock: 120n,
+    lastSuccessfulAt: "2026-02-01T00:02:00.000Z",
+    chainHeadSeen: 120n,
+    lagBlocks: 0n,
+    phase: "idle",
+    status: "healthy",
     lastError: null,
   });
 
-  const staleMilestones = await jsonRequest(`/escrows/${ESCROW_ADDRESS}/milestones`);
-  assert.equal(staleMilestones.status, 200);
+  const escrow = await jsonRequest(`/escrows/${ESCROW_ADDRESS}`);
+  assert.equal(escrow.status, 200);
+  {
+    const truth = escrow.body.truth as Record<string, unknown>;
+    const metadata = truth.metadata as Record<string, unknown>;
+    assert.equal(metadata.state, "verified");
+    assert.equal(metadata.verified, true);
+  }
 
-  const freshness = staleMilestones.body.freshness as Record<string, unknown>;
-  assert.equal(freshness.state, "stale");
-  assert.equal(freshness.degraded, true);
-  assert.equal(freshness.indexedBlock, "0");
-  assert.equal(freshness.lastSuccessfulAt, null);
-  assert.equal(freshness.lastAttemptedAt, null);
-  assert.equal(freshness.lagBlocks, "77");
+  const milestones = await jsonRequest(`/escrows/${ESCROW_ADDRESS}/milestones`);
+  assert.equal(milestones.status, 200);
+  {
+    const metadata = milestones.body.metadata as Record<string, unknown>;
+    assert.equal(metadata.state, "verified");
+
+    const first = (milestones.body.items as Array<Record<string, unknown>>)[0];
+    const milestoneTruth = first.truth as Record<string, unknown>;
+    const metadataVerification = milestoneTruth.metadataVerification as Record<string, unknown>;
+    assert.equal(metadataVerification.state, "verified");
+
+    const evidence = milestoneTruth.evidence as Record<string, unknown>;
+    assert.equal(evidence.state, "present");
+    assert.equal(evidence.ambiguity, "not-verifiable-from-onchain-hash");
+
+    const dispute = milestoneTruth.disputeContext as Record<string, unknown>;
+    assert.equal(dispute.state, "present");
+  }
+
+  resetDb();
+  resetLoopState();
+  seedEscrow();
+
+  upsertMetadataCache({
+    metadataHash: "0xhash",
+    metadataUrl: "mock://broken",
+    verified: true,
+    payloadJson: null,
+    error: null,
+    updatedAtBlock: "11",
+  });
+
+  const degraded = await jsonRequest(`/escrows/${ESCROW_ADDRESS}/milestones`);
+  assert.equal(degraded.status, 200);
+  {
+    const metadata = degraded.body.metadata as Record<string, unknown>;
+    assert.equal(metadata.state, "degraded");
+
+    const first = (degraded.body.items as Array<Record<string, unknown>>)[0];
+    const milestoneTruth = first.truth as Record<string, unknown>;
+    const metadataVerification = milestoneTruth.metadataVerification as Record<string, unknown>;
+    assert.equal(metadataVerification.state, "unavailable");
+  }
+});
+
+test("timeline endpoint preserves ambiguous-but-truthful claim attribution", async () => {
+  resetDb();
+  resetLoopState();
+  seedEscrow();
+
+  insertEvent({
+    chainId: 31337,
+    blockNumber: "20",
+    txHash: "0x10000000000000000000000000000000000000000000000000000000000000aa",
+    logIndex: "0",
+    escrowAddress: ESCROW_ADDRESS,
+    eventName: "MilestoneApproved",
+    summary: "Buyer approved milestone",
+    payloadJson: JSON.stringify({ milestoneId: "0" }),
+  });
+
+  insertEvent({
+    chainId: 31337,
+    blockNumber: "21",
+    txHash: "0x10000000000000000000000000000000000000000000000000000000000000ab",
+    logIndex: "0",
+    escrowAddress: ESCROW_ADDRESS,
+    eventName: "MilestoneClaimed",
+    summary: "Milestone payout finalized",
+    payloadJson: JSON.stringify({ milestoneId: "1", sellerAmount: "100", feeAmount: "1" }),
+  });
+
+  const timeline = await jsonRequest(`/escrows/${ESCROW_ADDRESS}/timeline`);
+  assert.equal(timeline.status, 200);
+
+  const items = timeline.body.items as Array<Record<string, unknown>>;
+  const claimed = items.find((item) => item.type === "MilestoneClaimed");
+  assert.ok(claimed);
+
+  const truth = claimed.truth as Record<string, unknown>;
+  assert.equal(truth.ambiguous, true);
+  assert.equal(truth.payoutAttribution, "seller_timeout_or_unresolved");
 });

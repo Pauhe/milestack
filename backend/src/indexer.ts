@@ -6,16 +6,8 @@ import { publicClient as defaultPublicClient } from "./clients.js";
 import { deploymentManifest } from "./config.js";
 import { db, getSyncHealthState, patchSyncHealthState } from "./db.js";
 import { recomputeUserRoleStats, recomputeUserRoleStatsFromReadModels } from "./reputation.js";
-import {
-  clearDerivedReadModels,
-  getMetadataCache,
-  insertEvent,
-  listAllEvents,
-  listKnownEscrows,
-  listMetadataCache,
-  upsertEscrow,
-  upsertMilestone,
-} from "./repository.js";
+import { clearDerivedReadModels, getMetadataCache, insertEvent, listAllEvents, listKnownEscrows, listMetadataCache, upsertEscrow, upsertMilestone } from "./repository.js";
+import { deriveMetadataTruth } from "./metadata.js";
 
 type DecodedLog = {
   chainId: number;
@@ -638,31 +630,15 @@ function parseEventEnvelope(row: {
 
 function readMetadataPayload(
   metadataHash: string,
-  rows: Array<{ metadata_hash: string; verified: number; payload_json: string | null; error: string | null }>
+  rows: Array<{ metadata_hash: string; metadata_url: string; verified: number; payload_json: string | null; error: string | null; updated_at_block: string }>
 ): { payload: Record<string, unknown> | null; error: string | null } {
   const row = rows.find((item) => item.metadata_hash === metadataHash) ?? getMetadataCache(metadataHash);
-  if (!row) {
-    return { payload: null, error: "missing metadata cache" };
-  }
+  const truth = deriveMetadataTruth(metadataHash, row);
 
-  if (row.verified !== 1) {
-    return { payload: null, error: row.error ?? "metadata cache not verified" };
-  }
-
-  if (!row.payload_json) {
-    return { payload: null, error: "metadata cache verified without payload" };
-  }
-
-  try {
-    const parsed = JSON.parse(row.payload_json) as unknown;
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-      return { payload: parsed as Record<string, unknown>, error: null };
-    }
-
-    return { payload: null, error: "metadata payload is not a JSON object" };
-  } catch {
-    return { payload: null, error: "metadata payload JSON parse failed" };
-  }
+  return {
+    payload: truth.state === "verified" || truth.state === "mismatched" ? truth.payload : null,
+    error: truth.state === "verified" ? null : truth.error,
+  };
 }
 
 function asString(value: unknown, fieldName: string) {
@@ -787,6 +763,36 @@ export function summarizeTimelineEvent(eventName: string, context?: TimelineSumm
   }
 
   return "Milestone payout finalized (approval or seller timeout claim remains ambiguous)";
+}
+
+export type TimelineTruth = {
+  ambiguous: boolean;
+  ambiguityReason: string | null;
+  payoutAttribution: "buyer_approved" | "seller_timeout_or_unresolved" | "n/a";
+};
+
+export function deriveTimelineTruth(eventName: string, context?: TimelineSummaryContext): TimelineTruth {
+  if (eventName !== "MilestoneClaimed") {
+    return {
+      ambiguous: false,
+      ambiguityReason: null,
+      payoutAttribution: "n/a",
+    };
+  }
+
+  if (hasAdjacentApprovalForSameMilestone(context)) {
+    return {
+      ambiguous: false,
+      ambiguityReason: null,
+      payoutAttribution: "buyer_approved",
+    };
+  }
+
+  return {
+    ambiguous: true,
+    ambiguityReason: "MilestoneClaimed has no adjacent same-milestone approval context.",
+    payoutAttribution: "seller_timeout_or_unresolved",
+  };
 }
 
 export function deriveActorRole(eventName: string, context?: TimelineSummaryContext) {

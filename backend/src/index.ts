@@ -6,15 +6,17 @@ import { getAddress } from "viem";
 import { backendConfig, deploymentManifest } from "./config.js";
 import { type SyncHealthState, getSyncHealthState } from "./db.js";
 import { deriveEscrowOverviewSemantics, deriveMilestoneSemantics } from "./escrow-semantics.js";
-import { deriveActorDetails, summarizeTimelineEvent } from "./indexer.js";
+import { deriveActorDetails, deriveTimelineTruth, summarizeTimelineEvent } from "./indexer.js";
 import {
   getEscrow,
   getEscrowParticipants,
+  getMetadataCache,
   getMilestone,
   getTimeline,
   getUserRoleStats,
   listMilestones,
 } from "./repository.js";
+import { deriveMetadataTruth } from "./metadata.js";
 import { runSyncOnce, startSyncLoop, syncLoopState } from "./sync-loop.js";
 
 type FreshnessState = "fresh" | "stale" | "rebuilding" | "unavailable";
@@ -51,6 +53,15 @@ type HealthPayload = {
     lastSyncAt: string | null;
     lastSyncError: string | null;
   };
+};
+
+type HashContextTruth = {
+  state: "present" | "missing";
+  hash: string | null;
+  verified: false;
+  degraded: boolean;
+  ambiguity: "not-verifiable-from-onchain-hash" | null;
+  reason: string | null;
 };
 
 function sanitizeErrorMessage(error: unknown) {
@@ -141,6 +152,111 @@ function buildHealthPayload(): HealthPayload {
   };
 }
 
+function buildHashContextTruth(hash: string): HashContextTruth {
+  if (hash && hash !== "0x0" && hash !== "0x") {
+    return {
+      state: "present",
+      hash,
+      verified: false,
+      degraded: false,
+      ambiguity: "not-verifiable-from-onchain-hash",
+      reason: "Onchain hash is present; backend has no canonical payload to verify yet.",
+    };
+  }
+
+  return {
+    state: "missing",
+    hash,
+    verified: false,
+    degraded: false,
+    ambiguity: null,
+    reason: null,
+  };
+}
+
+function toLowerHex(value: string) {
+  return value.toLowerCase();
+}
+
+function readHexField(payload: Record<string, unknown>, field: string): string {
+  const value = payload[field];
+  return typeof value === "string" ? value.toLowerCase() : "0x";
+}
+
+function pickMilestoneMetadataFromPayload(payload: Record<string, unknown> | null, milestoneId: number) {
+  const milestones = payload?.milestones;
+
+  if (!Array.isArray(milestones)) {
+    return null;
+  }
+
+  return (
+    milestones.find((item) => {
+      if (typeof item !== "object" || item === null || !("id" in item)) {
+        return false;
+      }
+
+      const id = (item as { id: unknown }).id;
+      if (typeof id === "number") {
+        return id === milestoneId;
+      }
+
+      if (typeof id === "string") {
+        return id === String(milestoneId);
+      }
+
+      return false;
+    }) ?? null
+  );
+}
+
+function readMilestoneMetadataTruth(
+  metadataPayload: Record<string, unknown> | null,
+  milestone: { milestone_id: number; metadata_title: string | null; metadata_description: string | null }
+) {
+  const entry = pickMilestoneMetadataFromPayload(metadataPayload, milestone.milestone_id);
+
+  if (!entry) {
+    return {
+      state: metadataPayload ? "missing" : "unavailable",
+      verified: false,
+      titleVerified: false,
+      descriptionVerified: false,
+      degraded: Boolean(metadataPayload),
+      reason: metadataPayload ? "metadata payload has no milestone entry for this milestoneId" : "deal metadata payload unavailable",
+    } as const;
+  }
+
+  const title = typeof (entry as Record<string, unknown>).title === "string" ? (entry as Record<string, unknown>).title : null;
+  const description =
+    typeof (entry as Record<string, unknown>).description === "string"
+      ? (entry as Record<string, unknown>).description
+      : null;
+
+  const titleVerified = title !== null && milestone.metadata_title === title;
+  const descriptionVerified = description !== null && milestone.metadata_description === description;
+
+  if (titleVerified && descriptionVerified) {
+    return {
+      state: "verified",
+      verified: true,
+      titleVerified,
+      descriptionVerified,
+      degraded: false,
+      reason: null,
+    } as const;
+  }
+
+  return {
+    state: "mismatched",
+    verified: false,
+    titleVerified,
+    descriptionVerified,
+    degraded: false,
+    reason: "indexed milestone metadata fields do not fully match verified metadata payload",
+  } as const;
+}
+
 export function createApp() {
   const app = express();
 
@@ -175,13 +291,27 @@ export function createApp() {
         return;
       }
 
+      const metadataTruth = deriveMetadataTruth(escrow.metadata_hash, getMetadataCache(escrow.metadata_hash));
       const nowUnixSeconds = Math.floor(Date.now() / 1000);
-      const milestones = listMilestones(address).map((milestone) => ({
-        ...milestone,
-        derived: deriveMilestoneSemantics(milestone, escrow, nowUnixSeconds),
-      }));
+      const milestones = listMilestones(address).map((milestone) => {
+        const metadataVerification = readMilestoneMetadataTruth(metadataTruth.payload, milestone);
 
-      response.json({ items: milestones, freshness: buildFreshness() });
+        return {
+          ...milestone,
+          derived: deriveMilestoneSemantics(milestone, escrow, nowUnixSeconds),
+          truth: {
+            metadataVerification,
+            evidence: buildHashContextTruth(toLowerHex(milestone.evidence_hash)),
+            disputeContext: buildHashContextTruth(toLowerHex(milestone.dispute_hash)),
+          },
+        };
+      });
+
+      response.json({
+        items: milestones,
+        metadata: metadataTruth,
+        freshness: buildFreshness(),
+      });
     } catch (error) {
       response.status(400).json({ error: sanitizeErrorMessage(error) });
     }
@@ -196,9 +326,29 @@ export function createApp() {
         return;
       }
 
+      const metadata = deriveMetadataTruth(overview.metadata_hash, getMetadataCache(overview.metadata_hash));
+
       response.json({
         ...overview,
         derived: deriveEscrowOverviewSemantics(overview),
+        truth: {
+          metadata,
+          activeDispute: overview.active_dispute_milestone_id
+            ? {
+                state: "present",
+                milestoneId: overview.active_dispute_milestone_id,
+                verified: true,
+                degraded: false,
+                reason: null,
+              }
+            : {
+                state: "none",
+                milestoneId: null,
+                verified: true,
+                degraded: false,
+                reason: null,
+              },
+        },
         freshness: buildFreshness(),
       });
     } catch (error) {
@@ -210,12 +360,29 @@ export function createApp() {
     try {
       const address = getAddress(request.params.address);
       const milestoneId = Number(request.params.milestoneId);
+      const escrow = getEscrow(address);
+      if (!escrow) {
+        response.status(404).json({ error: "Escrow not indexed" });
+        return;
+      }
+
       const milestone = getMilestone(address, milestoneId);
       if (!milestone) {
         response.status(404).json({ error: "Milestone not indexed" });
         return;
       }
-      response.json({ ...milestone, freshness: buildFreshness() });
+
+      const metadataTruth = deriveMetadataTruth(escrow.metadata_hash, getMetadataCache(escrow.metadata_hash));
+
+      response.json({
+        ...milestone,
+        truth: {
+          metadataVerification: readMilestoneMetadataTruth(metadataTruth.payload, milestone),
+          evidence: buildHashContextTruth(toLowerHex(milestone.evidence_hash)),
+          disputeContext: buildHashContextTruth(toLowerHex(milestone.dispute_hash)),
+        },
+        freshness: buildFreshness(),
+      });
     } catch (error) {
       response.status(400).json({ error: sanitizeErrorMessage(error) });
     }
@@ -236,25 +403,31 @@ export function createApp() {
             ? (JSON.parse(rawTimeline[index + 1]?.payload_json ?? "{}") as Record<string, unknown>)
             : null;
 
-        const actor = deriveActorDetails(event.event_name, participants, {
+        const context = {
+          payload,
           previousEventName: index > 0 ? rawTimeline[index - 1]?.event_name : null,
           nextEventName: index < rawTimeline.length - 1 ? rawTimeline[index + 1]?.event_name : null,
           previousPayload,
           nextPayload,
-        });
+        };
+
+        const actor = deriveActorDetails(event.event_name, participants, context);
+        const truth = deriveTimelineTruth(event.event_name, context);
 
         return {
           time: null,
           type: event.event_name,
-          summary: summarizeTimelineEvent(event.event_name, {
-            payload,
-            previousEventName: index > 0 ? rawTimeline[index - 1]?.event_name : null,
-            nextEventName: index < rawTimeline.length - 1 ? rawTimeline[index + 1]?.event_name : null,
-            previousPayload,
-            nextPayload,
-          }),
+          summary: summarizeTimelineEvent(event.event_name, context),
           actor,
           payload,
+          truth: {
+            ...truth,
+            evidence: event.event_name === "MilestoneSubmitted" ? buildHashContextTruth(readHexField(payload, "evidenceHash")) : null,
+            disputeContext:
+              event.event_name === "MilestoneDisputed" || event.event_name === "DisputeResolved"
+                ? buildHashContextTruth(readHexField(payload, "disputeHash"))
+                : null,
+          },
         };
       });
 
@@ -274,6 +447,10 @@ export function createApp() {
         buyerStats: stats.find((item) => item.role === "buyer") ?? null,
         sellerStats: stats.find((item) => item.role === "seller") ?? null,
         arbiterStats: stats.find((item) => item.role === "arbiter") ?? null,
+        truth: {
+          canonicalSource: "derived_from_events",
+          ambiguityPolicy: "claim_attribution_ambiguous_without_adjacent_same_milestone_approval",
+        },
         freshness: buildFreshness(),
       });
     } catch (error) {
