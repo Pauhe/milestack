@@ -178,7 +178,13 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
         )}
       </article>
 
-      <MilestoneActions milestone={milestone} milestoneId={parsedMilestoneId} overview={overview} />
+      <MilestoneActions
+        milestone={milestone}
+        milestoneId={parsedMilestoneId}
+        overview={overview}
+        backendDerived={backendMilestone?.derived}
+        backendReviewDeadline={backendMilestone?.review_deadline}
+      />
     </section>
   );
 }

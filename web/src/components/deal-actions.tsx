@@ -14,15 +14,24 @@ import {
 import { configuredChain } from "@/lib/chains";
 import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 import type { EscrowOverview } from "@/lib/contracts/milestone-escrow";
-import { getDealStatusLabel, getMilestoneStatusLabel } from "@/lib/status";
+import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
+import { getDealStatusLabel } from "@/lib/status";
 
 type DealActionsProps = {
   overview: EscrowOverview;
+  backendMilestoneDerived?: {
+    isCurrent: boolean;
+    isBlocked: boolean;
+    buyerCanApprove: boolean;
+    buyerCanDispute: boolean;
+    sellerCanClaim: boolean;
+  };
+  backendReviewDeadline?: string;
 };
 
-type Role = "buyer" | "seller" | "arbiter" | "visitor";
+type Role = MilestoneRole;
 
-export function DealActions({ overview }: DealActionsProps) {
+export function DealActions({ overview, backendMilestoneDerived, backendReviewDeadline }: DealActionsProps) {
   const router = useRouter();
   const { address, chainId, isConnected } = useAccount();
   const { connect, connectors, isPending: isConnectPending } = useConnect();
@@ -51,6 +60,31 @@ export function DealActions({ overview }: DealActionsProps) {
   const isWrongChain = isConnected && chainId !== configuredChain.id;
   const isBusy = isPending || isConfirming;
 
+  const semantics = useMemo(
+    () =>
+      currentMilestoneStatus === undefined
+        ? null
+        : deriveMilestoneActionSemantics({
+            role,
+            status: currentMilestoneStatus,
+            milestoneId: currentMilestoneId,
+            currentMilestoneIndex: Number(overview.currentMilestoneIndex),
+            activeDisputeMilestoneId: Number(overview.activeDisputeMilestoneId),
+            derived: backendMilestoneDerived,
+            reviewDeadline: backendReviewDeadline ?? overview.currentMilestone?.reviewDeadline,
+          }),
+    [
+      backendMilestoneDerived,
+      backendReviewDeadline,
+      currentMilestoneId,
+      currentMilestoneStatus,
+      overview.activeDisputeMilestoneId,
+      overview.currentMilestone?.reviewDeadline,
+      overview.currentMilestoneIndex,
+      role,
+    ]
+  );
+
   function refreshAfterWrite() {
     router.refresh();
   }
@@ -78,7 +112,7 @@ export function DealActions({ overview }: DealActionsProps) {
         <h2>{role === "visitor" ? "Read-only visitor" : role}</h2>
         <p>
           Deal status: {getDealStatusLabel(overview.dealStatus)}. Current milestone status: {" "}
-          {overview.currentMilestone ? getMilestoneStatusLabel(overview.currentMilestone.status) : "Not available"}.
+          {semantics ? semantics.statusLabel : "Not available"}.
         </p>
 
         {!isConnected ? (
@@ -124,7 +158,7 @@ export function DealActions({ overview }: DealActionsProps) {
 
         {overview.currentMilestone ? (
           <div className="stack-md">
-            {role === "buyer" && currentMilestoneStatus === 0 ? (
+            {semantics?.canFund ? (
               <button
                 className="button button--primary"
                 disabled={isBusy || isWrongChain}
@@ -135,7 +169,7 @@ export function DealActions({ overview }: DealActionsProps) {
               </button>
             ) : null}
 
-            {role === "seller" && currentMilestoneStatus === 1 ? (
+            {semantics?.canSubmit ? (
               <div className="stack-sm">
                 <label className="field stack-sm">
                   <span>Evidence hash</span>
@@ -157,40 +191,50 @@ export function DealActions({ overview }: DealActionsProps) {
               </div>
             ) : null}
 
-            {role === "buyer" && currentMilestoneStatus === 2 ? (
+            {semantics && (semantics.canApprove || semantics.canDispute) ? (
               <div className="stack-sm">
-                <div className="action-row">
-                  <button
-                    className="button button--primary"
-                    disabled={isBusy || isWrongChain}
-                    onClick={() => runWrite("approveMilestone", [BigInt(currentMilestoneId)])}
-                    type="button"
-                  >
-                    Approve milestone
-                  </button>
-                </div>
+                {semantics.canApprove ? (
+                  <div className="action-row">
+                    <button
+                      className="button button--primary"
+                      disabled={isBusy || isWrongChain}
+                      onClick={() => runWrite("approveMilestone", [BigInt(currentMilestoneId)])}
+                      type="button"
+                    >
+                      Approve milestone
+                    </button>
+                  </div>
+                ) : null}
 
-                <label className="field stack-sm">
-                  <span>Dispute hash</span>
-                  <input
-                    className="text-input"
-                    onChange={(event) => setDisputeHash(event.target.value)}
-                    placeholder="0x..."
-                    value={disputeHash}
-                  />
-                </label>
-                <button
-                  className="button button--ghost"
-                  disabled={isBusy || isWrongChain || disputeHash.length === 0}
-                  onClick={() => runWrite("openDispute", [BigInt(currentMilestoneId), disputeHash])}
-                  type="button"
-                >
-                  Open dispute
-                </button>
+                {semantics.canDispute ? (
+                  <>
+                    <label className="field stack-sm">
+                      <span>Dispute hash</span>
+                      <input
+                        className="text-input"
+                        onChange={(event) => setDisputeHash(event.target.value)}
+                        placeholder="0x..."
+                        value={disputeHash}
+                      />
+                    </label>
+                    <button
+                      className="button button--ghost"
+                      disabled={isBusy || isWrongChain || disputeHash.length === 0}
+                      onClick={() => runWrite("openDispute", [BigInt(currentMilestoneId), disputeHash])}
+                      type="button"
+                    >
+                      Open dispute
+                    </button>
+                  </>
+                ) : null}
               </div>
             ) : null}
 
-            {role === "seller" && currentMilestoneStatus === 2 ? (
+            {semantics?.claimAfterTimeoutHint ? (
+              <p className="status-text">{semantics.claimAfterTimeoutHint}</p>
+            ) : null}
+
+            {semantics?.canClaimAfterTimeout ? (
               <button
                 className="button button--primary"
                 disabled={isBusy || isWrongChain}
@@ -201,21 +245,14 @@ export function DealActions({ overview }: DealActionsProps) {
               </button>
             ) : null}
 
-            {role === "arbiter" && currentMilestoneStatus === 5 ? (
+            {semantics?.canResolveDispute ? (
               <p className="status-text">
-                Arbiter resolution form is next. This page now detects the arbiter role and disputed
-                milestone state.
+                Open the dispute view to submit the arbiter split for this milestone.
               </p>
             ) : null}
 
-            {!([
-              role === "buyer" && currentMilestoneStatus === 0,
-              role === "seller" && currentMilestoneStatus === 1,
-              role === "buyer" && currentMilestoneStatus === 2,
-              role === "seller" && currentMilestoneStatus === 2,
-              role === "arbiter" && currentMilestoneStatus === 5,
-            ].some(Boolean)) ? (
-              <p className="status-text">No direct action is available for the connected role in this state.</p>
+            {semantics && !semantics.hasAction ? (
+              <p className="status-text">{semantics.blockedReason}</p>
             ) : null}
           </div>
         ) : (

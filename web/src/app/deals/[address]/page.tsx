@@ -206,7 +206,11 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
         )}
       </article>
 
-      <DealActions overview={overview} />
+      <DealActions
+        overview={overview}
+        backendMilestoneDerived={backendMilestones.find((item) => item.milestone_id === Number(overview.currentMilestoneIndex))?.derived}
+        backendReviewDeadline={backendMilestones.find((item) => item.milestone_id === Number(overview.currentMilestoneIndex))?.review_deadline}
+      />
     </section>
   );
 }
