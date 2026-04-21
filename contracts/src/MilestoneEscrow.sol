@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {DealConfig, DealStatus, Milestone, MilestoneConfig, MilestoneStatus} from "./MilestackTypes.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {
+    DealConfig,
+    DealStatus,
+    Milestone,
+    MilestoneConfig,
+    MilestoneStatus
+} from "./MilestackTypes.sol";
 import {
     Unauthorized,
     InvalidMilestoneState,
@@ -122,7 +128,9 @@ contract MilestoneEscrow {
         uint256 totalToFund;
 
         for (uint256 i = currentMilestoneIndex; i < milestones.length; i++) {
-            if (milestones[i].status != MilestoneStatus.PendingFunding) revert InvalidMilestoneState();
+            if (milestones[i].status != MilestoneStatus.PendingFunding) {
+                revert InvalidMilestoneState();
+            }
             totalToFund += milestones[i].amount;
         }
 
@@ -208,10 +216,14 @@ contract MilestoneEscrow {
         emit MilestoneDisputed(milestoneId, disputeHash);
     }
 
-    function resolveDispute(uint256 milestoneId, uint256 buyerAmount, uint256 sellerAmount) external {
+    function resolveDispute(uint256 milestoneId, uint256 buyerAmount, uint256 sellerAmount)
+        external
+    {
         if (msg.sender != dealConfig.arbiter) revert Unauthorized();
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
-        if (activeDisputeMilestoneId == type(uint256).max || activeDisputeMilestoneId != milestoneId) {
+        if (
+            activeDisputeMilestoneId == type(uint256).max || activeDisputeMilestoneId != milestoneId
+        ) {
             revert NoActiveDispute();
         }
 
@@ -228,7 +240,9 @@ contract MilestoneEscrow {
         totalRefundedToBuyer += buyerAmount;
         totalReleasedToSeller += sellerNetAmount;
         totalFeesCollected += feeAmount;
-        _finalizeMilestone(milestone, sellerAmount == 0 ? MilestoneStatus.Refunded : MilestoneStatus.PaidOut);
+        _finalizeMilestone(
+            milestone, sellerAmount == 0 ? MilestoneStatus.Refunded : MilestoneStatus.PaidOut
+        );
 
         if (buyerAmount > 0) {
             _safeTransfer(dealConfig.buyer, buyerAmount);
@@ -246,7 +260,9 @@ contract MilestoneEscrow {
     }
 
     function cancelUnfundedMilestones() external {
-        if (msg.sender != dealConfig.buyer && msg.sender != dealConfig.seller) revert Unauthorized();
+        if (msg.sender != dealConfig.buyer && msg.sender != dealConfig.seller) {
+            revert Unauthorized();
+        }
 
         uint256 cancelledCount;
 
@@ -254,7 +270,8 @@ contract MilestoneEscrow {
             MilestoneStatus status = milestones[i].status;
 
             if (
-                status == MilestoneStatus.Funded || status == MilestoneStatus.Submitted || status == MilestoneStatus.Disputed
+                status == MilestoneStatus.Funded || status == MilestoneStatus.Submitted
+                    || status == MilestoneStatus.Disputed
             ) {
                 revert InvalidMilestoneState();
             }
@@ -293,7 +310,9 @@ contract MilestoneEscrow {
         emit MilestoneClaimed(milestoneId, sellerAmount, feeAmount);
     }
 
-    function _finalizeMilestone(Milestone storage milestone, MilestoneStatus terminalStatus) internal {
+    function _finalizeMilestone(Milestone storage milestone, MilestoneStatus terminalStatus)
+        internal
+    {
         milestone.status = terminalStatus;
 
         if (currentMilestoneIndex + 1 < milestones.length) {

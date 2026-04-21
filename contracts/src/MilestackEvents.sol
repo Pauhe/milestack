@@ -13,20 +13,14 @@ event EscrowCreated(
 
 event MilestoneFunded(uint256 indexed milestoneId, uint256 amount);
 event MilestoneSubmitted(
-    uint256 indexed milestoneId,
-    bytes32 evidenceHash,
-    uint64 submittedAt,
-    uint64 reviewDeadline
+    uint256 indexed milestoneId, bytes32 evidenceHash, uint64 submittedAt, uint64 reviewDeadline
 );
 event MilestoneApproved(uint256 indexed milestoneId);
 event MilestoneClaimable(uint256 indexed milestoneId);
 event MilestoneClaimed(uint256 indexed milestoneId, uint256 sellerAmount, uint256 feeAmount);
 event MilestoneDisputed(uint256 indexed milestoneId, bytes32 disputeHash);
 event DisputeResolved(
-    uint256 indexed milestoneId,
-    uint256 buyerAmount,
-    uint256 sellerAmount,
-    uint256 feeAmount
+    uint256 indexed milestoneId, uint256 buyerAmount, uint256 sellerAmount, uint256 feeAmount
 );
 event MilestoneCancelled(uint256 indexed milestoneId);
 event DealCompleted();

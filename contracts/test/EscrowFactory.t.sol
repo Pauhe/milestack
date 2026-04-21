@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {EscrowFactory} from "src/EscrowFactory.sol";
-import {MilestoneEscrow} from "src/MilestoneEscrow.sol";
-import {DealStatus, Milestone, MilestoneConfig, MilestoneStatus} from "src/MilestackTypes.sol";
+import { EscrowFactory } from "src/EscrowFactory.sol";
+import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
+import { DealStatus, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
 import {
     ZeroAddress,
     InvalidPartyConfiguration,
@@ -120,7 +120,7 @@ contract EscrowFactoryTest is Test {
 
     function testCreateEscrowRejectsZeroMilestoneAmount() public {
         MilestoneConfig[] memory milestones = new MilestoneConfig[](1);
-        milestones[0] = MilestoneConfig({amount: 0, reviewWindowSeconds: 5 days});
+        milestones[0] = MilestoneConfig({ amount: 0, reviewWindowSeconds: 5 days });
 
         vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneAmount.selector));
         factory.createEscrow(BUYER, SELLER, ARBITER, METADATA_HASH, milestones);
@@ -128,14 +128,15 @@ contract EscrowFactoryTest is Test {
 
     function testCreateEscrowRejectsZeroReviewWindow() public {
         MilestoneConfig[] memory milestones = new MilestoneConfig[](1);
-        milestones[0] = MilestoneConfig({amount: 1 ether, reviewWindowSeconds: 0});
+        milestones[0] = MilestoneConfig({ amount: 1 ether, reviewWindowSeconds: 0 });
 
         vm.expectRevert(abi.encodeWithSelector(InvalidReviewWindow.selector));
         factory.createEscrow(BUYER, SELLER, ARBITER, METADATA_HASH, milestones);
     }
 
     function testCreateEscrowDeploysEscrowWithExpectedInitialState() public {
-        address escrowAddress = factory.createEscrow(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones());
+        address escrowAddress =
+            factory.createEscrow(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones());
 
         MilestoneEscrow escrow = MilestoneEscrow(escrowAddress);
 
@@ -161,7 +162,7 @@ contract EscrowFactoryTest is Test {
 
     function _milestones() internal pure returns (MilestoneConfig[] memory milestones) {
         milestones = new MilestoneConfig[](2);
-        milestones[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
-        milestones[1] = MilestoneConfig({amount: 2_000e6, reviewWindowSeconds: 5 days});
+        milestones[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
+        milestones[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 5 days });
     }
 }

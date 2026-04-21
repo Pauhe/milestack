@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {MilestoneEscrow} from "src/MilestoneEscrow.sol";
-import {DealConfig, Milestone, MilestoneConfig, MilestoneStatus} from "src/MilestackTypes.sol";
-import {InvalidMilestoneState} from "src/MilestackErrors.sol";
-import {MockERC20} from "test/mocks/MockERC20.sol";
+import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
+import { DealConfig, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
+import { InvalidMilestoneState } from "src/MilestackErrors.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract MilestoneEscrowFuzzTest is Test {
     address internal constant BUYER = address(0xB0B);
@@ -17,12 +17,17 @@ contract MilestoneEscrowFuzzTest is Test {
     bytes32 internal constant EVIDENCE_HASH = keccak256("fuzz-evidence");
     bytes32 internal constant DISPUTE_HASH = keccak256("fuzz-dispute");
 
-    function testFuzzApprovePayoutAccounting(uint96 rawAmount, uint32 rawReviewWindow, uint16 rawFeeBps) public {
+    function testFuzzApprovePayoutAccounting(
+        uint96 rawAmount,
+        uint32 rawReviewWindow,
+        uint16 rawFeeBps
+    ) public {
         uint256 amount = bound(uint256(rawAmount), 1, 1_000_000_000_000e6);
         uint32 reviewWindow = uint32(bound(uint256(rawReviewWindow), 1, 30 days));
         uint16 feeBps = uint16(bound(uint256(rawFeeBps), 0, 2_000));
 
-        (MockERC20 token, MilestoneEscrow escrow) = _deploySingleMilestoneEscrow(amount, reviewWindow, feeBps);
+        (MockERC20 token, MilestoneEscrow escrow) =
+            _deploySingleMilestoneEscrow(amount, reviewWindow, feeBps);
 
         vm.prank(BUYER);
         escrow.fundMilestone(0);
@@ -46,12 +51,17 @@ contract MilestoneEscrowFuzzTest is Test {
         assertEq(token.balanceOf(address(escrow)), 0);
     }
 
-    function testFuzzClaimPayoutAccounting(uint96 rawAmount, uint32 rawReviewWindow, uint16 rawFeeBps) public {
+    function testFuzzClaimPayoutAccounting(
+        uint96 rawAmount,
+        uint32 rawReviewWindow,
+        uint16 rawFeeBps
+    ) public {
         uint256 amount = bound(uint256(rawAmount), 1, 1_000_000_000_000e6);
         uint32 reviewWindow = uint32(bound(uint256(rawReviewWindow), 1, 30 days));
         uint16 feeBps = uint16(bound(uint256(rawFeeBps), 0, 2_000));
 
-        (MockERC20 token, MilestoneEscrow escrow) = _deploySingleMilestoneEscrow(amount, reviewWindow, feeBps);
+        (MockERC20 token, MilestoneEscrow escrow) =
+            _deploySingleMilestoneEscrow(amount, reviewWindow, feeBps);
 
         vm.prank(BUYER);
         escrow.fundMilestone(0);
@@ -90,7 +100,8 @@ contract MilestoneEscrowFuzzTest is Test {
         uint256 sellerGrossAmount = (amount * bound(uint256(rawSellerShareBps), 0, 10_000)) / 10_000;
         uint256 buyerAmount = amount - sellerGrossAmount;
 
-        (MockERC20 token, MilestoneEscrow escrow) = _deploySingleMilestoneEscrow(amount, reviewWindow, feeBps);
+        (MockERC20 token, MilestoneEscrow escrow) =
+            _deploySingleMilestoneEscrow(amount, reviewWindow, feeBps);
 
         vm.prank(BUYER);
         escrow.fundMilestone(0);
@@ -147,7 +158,8 @@ contract MilestoneEscrowFuzzTest is Test {
         vm.prank(BUYER);
         escrow.approveMilestone(0);
 
-        bytes32 nonZeroEvidence = replacementEvidence == bytes32(0) ? bytes32(uint256(1)) : replacementEvidence;
+        bytes32 nonZeroEvidence =
+            replacementEvidence == bytes32(0) ? bytes32(uint256(1)) : replacementEvidence;
         bytes32 nonZeroDisputeHash = disputeHash == bytes32(0) ? bytes32(uint256(2)) : disputeHash;
 
         vm.prank(SELLER);
@@ -244,7 +256,7 @@ contract MilestoneEscrowFuzzTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
-        milestoneConfigs[0] = MilestoneConfig({amount: amount, reviewWindowSeconds: reviewWindow});
+        milestoneConfigs[0] = MilestoneConfig({ amount: amount, reviewWindowSeconds: reviewWindow });
 
         escrow = new MilestoneEscrow(config, milestoneConfigs);
 
@@ -253,10 +265,12 @@ contract MilestoneEscrowFuzzTest is Test {
         token.approve(address(escrow), type(uint256).max);
     }
 
-    function _deployTwoMilestoneEscrow(uint256 amount0, uint256 amount1, uint32 reviewWindow, uint16 feeBps)
-        internal
-        returns (MockERC20 token, MilestoneEscrow escrow)
-    {
+    function _deployTwoMilestoneEscrow(
+        uint256 amount0,
+        uint256 amount1,
+        uint32 reviewWindow,
+        uint16 feeBps
+    ) internal returns (MockERC20 token, MilestoneEscrow escrow) {
         token = new MockERC20();
 
         DealConfig memory config = DealConfig({
@@ -270,8 +284,10 @@ contract MilestoneEscrowFuzzTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](2);
-        milestoneConfigs[0] = MilestoneConfig({amount: amount0, reviewWindowSeconds: reviewWindow});
-        milestoneConfigs[1] = MilestoneConfig({amount: amount1, reviewWindowSeconds: reviewWindow});
+        milestoneConfigs[0] =
+            MilestoneConfig({ amount: amount0, reviewWindowSeconds: reviewWindow });
+        milestoneConfigs[1] =
+            MilestoneConfig({ amount: amount1, reviewWindowSeconds: reviewWindow });
 
         escrow = new MilestoneEscrow(config, milestoneConfigs);
     }

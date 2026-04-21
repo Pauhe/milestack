@@ -57,6 +57,11 @@ Why this segment:
 - `contracts/`: smart contract implementation
 - `web/`: frontend application
 
+## Development Docs
+
+- Contracts workspace guide: [`contracts/README.md`](./contracts/README.md)
+- Contracts maintenance runbook: [`docs/CONTRACTS_RUNBOOK.md`](./docs/CONTRACTS_RUNBOOK.md)
+
 ## Current Docs
 
 - Product spec: [`PRODUCT_SPEC.md`](./PRODUCT_SPEC.md)

@@ -30,5 +30,8 @@ jobs:
       - name: Show Forge version
         run: forge --version
 
+      - name: Check formatting
+        run: forge fmt --check
+
       - name: Run forge tests
         run: forge test

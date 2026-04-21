@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {DealConfig, MilestoneConfig} from "./MilestackTypes.sol";
+import { DealConfig, MilestoneConfig } from "./MilestackTypes.sol";
 import {
     ZeroAddress,
     InvalidPartyConfiguration,
@@ -14,7 +14,7 @@ import {
     CreationPaused
 } from "./MilestackErrors.sol";
 import "./MilestackEvents.sol";
-import {MilestoneEscrow} from "./MilestoneEscrow.sol";
+import { MilestoneEscrow } from "./MilestoneEscrow.sol";
 
 contract EscrowFactory {
     address public immutable usdc;
@@ -79,14 +79,6 @@ contract EscrowFactory {
         MilestoneEscrow deployed = new MilestoneEscrow(config, milestones);
         escrow = address(deployed);
 
-        emit EscrowCreated(
-            escrow,
-            buyer,
-            seller,
-            arbiter,
-            usdc,
-            milestones.length,
-            metadataHash
-        );
+        emit EscrowCreated(escrow, buyer, seller, arbiter, usdc, milestones.length, metadataHash);
     }
 }

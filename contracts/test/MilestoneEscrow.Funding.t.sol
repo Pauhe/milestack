@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 
-import {MilestoneEscrow} from "src/MilestoneEscrow.sol";
-import {DealConfig, DealStatus, Milestone, MilestoneConfig, MilestoneStatus} from "src/MilestackTypes.sol";
+import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
+import {
+    DealConfig,
+    DealStatus,
+    Milestone,
+    MilestoneConfig,
+    MilestoneStatus
+} from "src/MilestackTypes.sol";
 import {
     Unauthorized,
     InvalidMilestoneState,
@@ -12,7 +18,7 @@ import {
     InvalidMilestoneSequence,
     ActiveDisputeExists
 } from "src/MilestackErrors.sol";
-import {MockERC20} from "test/mocks/MockERC20.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract MilestoneEscrowFundingTest is Test {
     address internal constant BUYER = address(0xB0B);
@@ -37,8 +43,8 @@ contract MilestoneEscrowFundingTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](2);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
-        milestoneConfigs[1] = MilestoneConfig({amount: 2_000e6, reviewWindowSeconds: 5 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
+        milestoneConfigs[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 5 days });
 
         escrow = new MilestoneEscrow(config, milestoneConfigs);
 

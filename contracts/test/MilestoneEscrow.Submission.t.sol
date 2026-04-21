@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test} from "forge-std/Test.sol";
-import {Vm} from "forge-std/Vm.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Test } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
-import {MilestoneEscrow} from "src/MilestoneEscrow.sol";
-import {DealConfig, DealStatus, Milestone, MilestoneConfig, MilestoneStatus} from "src/MilestackTypes.sol";
+import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
+import {
+    DealConfig,
+    DealStatus,
+    Milestone,
+    MilestoneConfig,
+    MilestoneStatus
+} from "src/MilestackTypes.sol";
 import {
     Unauthorized,
     InvalidMilestoneState,
@@ -21,9 +27,9 @@ import {
     DeadlinePassed,
     NothingToCancel
 } from "src/MilestackErrors.sol";
-import {MockERC20} from "test/mocks/MockERC20.sol";
-import {MockFailingTransferERC20} from "test/mocks/MockFailingTransferERC20.sol";
-import {MilestoneClaimable} from "src/MilestackEvents.sol";
+import { MockERC20 } from "test/mocks/MockERC20.sol";
+import { MockFailingTransferERC20 } from "test/mocks/MockFailingTransferERC20.sol";
+import { MilestoneClaimable } from "src/MilestackEvents.sol";
 
 contract MilestoneEscrowSubmissionTest is Test {
     address internal constant BUYER = address(0xB0B);
@@ -62,8 +68,8 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](2);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
-        milestoneConfigs[1] = MilestoneConfig({amount: 2_000e6, reviewWindowSeconds: 3 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
+        milestoneConfigs[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 3 days });
 
         deployedEscrow = new MilestoneEscrow(config, milestoneConfigs);
     }
@@ -80,7 +86,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
         deployedEscrow = new MilestoneEscrow(config, milestoneConfigs);
     }
@@ -97,7 +103,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
         deployedEscrow = new MilestoneEscrow(config, milestoneConfigs);
     }
@@ -320,7 +326,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
         MilestoneEscrow failingEscrow = new MilestoneEscrow(config, milestoneConfigs);
 
@@ -335,7 +341,11 @@ contract MilestoneEscrowSubmissionTest is Test {
         failingEscrow.submitMilestone(0, EVIDENCE_HASH);
 
         vm.prank(BUYER);
-        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(failingToken)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SafeERC20.SafeERC20FailedOperation.selector, address(failingToken)
+            )
+        );
         failingEscrow.approveMilestone(0);
 
         Milestone memory milestone = failingEscrow.getMilestone(0);
@@ -485,7 +495,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
         MilestoneEscrow failingEscrow = new MilestoneEscrow(config, milestoneConfigs);
 
@@ -503,7 +513,11 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.warp(submittedMilestone.reviewDeadline + 1);
 
         vm.prank(SELLER);
-        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(failingToken)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SafeERC20.SafeERC20FailedOperation.selector, address(failingToken)
+            )
+        );
         failingEscrow.claimAfterReviewWindow(0);
 
         Milestone memory milestone = failingEscrow.getMilestone(0);
@@ -794,7 +808,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
-        milestoneConfigs[0] = MilestoneConfig({amount: 1_000e6, reviewWindowSeconds: 5 days});
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
         MilestoneEscrow failingEscrow = new MilestoneEscrow(config, milestoneConfigs);
 
@@ -812,7 +826,11 @@ contract MilestoneEscrowSubmissionTest is Test {
         failingEscrow.openDispute(0, DISPUTE_HASH);
 
         vm.prank(ARBITER);
-        vm.expectRevert(abi.encodeWithSelector(SafeERC20.SafeERC20FailedOperation.selector, address(failingToken)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                SafeERC20.SafeERC20FailedOperation.selector, address(failingToken)
+            )
+        );
         failingEscrow.resolveDispute(0, 400e6, 600e6);
 
         Milestone memory milestone = failingEscrow.getMilestone(0);
