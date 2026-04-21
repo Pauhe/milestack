@@ -45,6 +45,21 @@ export async function assertFreshnessBanner(page: Page) {
   await expect(page.getByTestId("backend-freshness-banner")).toBeVisible();
 }
 
+export async function readFreshnessBannerText(page: Page) {
+  const banner = page.getByTestId("backend-freshness-banner");
+  await expect(banner).toBeVisible();
+  return (await banner.innerText()).toLowerCase();
+}
+
+export async function assertConservativeFreshnessBanner(
+  page: Page,
+  expectedFragments: string[] = ["stale", "rebuilding", "unavailable", "degraded", "failed"]
+) {
+  const text = await readFreshnessBannerText(page);
+  const matched = expectedFragments.some((fragment) => text.includes(fragment.toLowerCase()));
+  expect(matched).toBeTruthy();
+}
+
 export async function assertBlockedCallout(guidancePanel: Locator, calloutTestId: string) {
   const blocked = guidancePanel.getByTestId(calloutTestId);
   await expect(blocked).toBeVisible();
