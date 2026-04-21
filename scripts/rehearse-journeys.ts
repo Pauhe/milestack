@@ -91,6 +91,143 @@ type Freshness = {
   lastError?: string | null;
 };
 
+type BackendTruthSnapshot = {
+  label: string;
+  escrowAddress: string;
+  timelineTypes: string[];
+  milestone: {
+    id: number;
+    status: number;
+  };
+  freshness: {
+    health: Freshness;
+    escrow: Freshness;
+    milestones: Freshness;
+    timeline: Freshness;
+    reputation: Freshness;
+  };
+  claimAttribution: string | null;
+  activeDisputeState: string | null;
+  reputationAmbiguityPolicy: string | null;
+};
+
+function assertRecord(value: unknown, scope: string): Record<string, unknown> {
+  assertCondition(typeof value === "object" && value !== null && !Array.isArray(value), `${scope}: expected object payload`);
+  return value as Record<string, unknown>;
+}
+
+function assertTimelineItems(value: unknown, scope: string): Array<Record<string, unknown>> {
+  assertCondition(Array.isArray(value), `${scope}: expected items[] array`);
+  return value.map((item, index) => assertRecord(item, `${scope}.items[${index}]`));
+}
+
+function captureBackendTruthSnapshot(
+  label: string,
+  journey: SeedJourney,
+  responses: {
+    health: Record<string, unknown>;
+    escrow: Record<string, unknown>;
+    milestones: Record<string, unknown>;
+    timeline: Record<string, unknown>;
+    reputation: Record<string, unknown>;
+  },
+  expectedMilestoneStatus: number,
+  expectedTimelineSubsequence: string[]
+): BackendTruthSnapshot {
+  const healthSync = assertRecord(responses.health.sync, `${label} /health.sync`);
+  const escrowFreshness = responses.escrow.freshness as Freshness;
+  const milestonesFreshness = responses.milestones.freshness as Freshness;
+  const timelineFreshness = responses.timeline.freshness as Freshness;
+  const reputationFreshness = responses.reputation.freshness as Freshness;
+
+  assertFreshnessContract(healthSync as Freshness, `${label} /health.sync`);
+  assertFreshnessContract(escrowFreshness, `${label} /escrow freshness`);
+  assertFreshnessContract(milestonesFreshness, `${label} /milestones freshness`);
+  assertFreshnessContract(timelineFreshness, `${label} /timeline freshness`);
+  assertFreshnessContract(reputationFreshness, `${label} /reputation freshness`);
+
+  const timelineItems = assertTimelineItems(responses.timeline.items, `${label} /timeline`);
+  const timelineTypes = timelineItems
+    .map((item) => (typeof item.type === "string" ? item.type : ""))
+    .filter((item): item is string => item.length > 0);
+
+  assertTimelineContainsSubsequence(timelineTypes, expectedTimelineSubsequence, `${label} timeline`);
+
+  const milestoneItems = assertTimelineItems(responses.milestones.items, `${label} /milestones`);
+  const milestone = milestoneItems.find((item) => Number(item.milestone_id) === journey.milestoneId);
+  assertCondition(milestone, `${label}: milestone ${journey.milestoneId} missing`);
+  assertCondition(
+    Number(milestone.status) === expectedMilestoneStatus,
+    `${label}: milestone status mismatch expected=${expectedMilestoneStatus} actual=${String(milestone.status)}`
+  );
+
+  const claimed = timelineItems.find((item) => item.type === "MilestoneClaimed");
+  const claimAttribution = claimed
+    ? ((assertRecord(claimed.truth, `${label} timeline claimed.truth`).payoutAttribution as string | undefined) ?? null)
+    : null;
+
+  const escrowTruth = assertRecord(responses.escrow.truth, `${label} /escrow truth`);
+  const activeDispute = assertRecord(escrowTruth.activeDispute, `${label} /escrow truth.activeDispute`);
+
+  const reputationTruth = assertRecord(responses.reputation.truth, `${label} /reputation truth`);
+
+  return {
+    label,
+    escrowAddress: journey.escrowAddress,
+    timelineTypes,
+    milestone: {
+      id: journey.milestoneId,
+      status: Number(milestone.status),
+    },
+    freshness: {
+      health: healthSync as Freshness,
+      escrow: escrowFreshness,
+      milestones: milestonesFreshness,
+      timeline: timelineFreshness,
+      reputation: reputationFreshness,
+    },
+    claimAttribution,
+    activeDisputeState: (activeDispute.state as string | undefined) ?? null,
+    reputationAmbiguityPolicy: (reputationTruth.ambiguityPolicy as string | undefined) ?? null,
+  };
+}
+
+function assertRecoveryContinuity(
+  before: BackendTruthSnapshot | null,
+  after: BackendTruthSnapshot,
+  expectedTimelineSubsequence: string[]
+) {
+  assertTimelineContainsSubsequence(after.timelineTypes, expectedTimelineSubsequence, `${after.label}: expected canonical replay subsequence`);
+
+  if (!before) {
+    return;
+  }
+
+  assertCondition(before.escrowAddress === after.escrowAddress, `${after.label}: escrow address changed across continuity assertion`);
+  assertTimelineContainsSubsequence(after.timelineTypes, before.timelineTypes, `${after.label}: pre-recovery timeline continuity`);
+
+  if (before.milestone.status >= 7) {
+    assertCondition(
+      after.milestone.status === before.milestone.status,
+      `${after.label}: terminal milestone state regressed from ${before.milestone.status} to ${after.milestone.status}`
+    );
+  }
+
+  if (before.claimAttribution !== null) {
+    assertCondition(
+      after.claimAttribution === before.claimAttribution,
+      `${after.label}: claim attribution changed across continuity (${before.claimAttribution} -> ${after.claimAttribution})`
+    );
+  }
+
+  if (before.reputationAmbiguityPolicy !== null) {
+    assertCondition(
+      after.reputationAmbiguityPolicy === before.reputationAmbiguityPolicy,
+      `${after.label}: reputation ambiguity policy drifted across continuity`
+    );
+  }
+}
+
 const escrowFactoryAbi = escrowFactoryArtifact.abi;
 const milestoneEscrowAbi = milestoneEscrowArtifact.abi;
 const mockErc20Abi = mockErc20Artifact.abi;
@@ -479,7 +616,12 @@ async function executeJourneys(seed: SeedPayload) {
   const buyer = privateKeyToAccount(buyerPrivateKey);
   const arbiter = privateKeyToAccount(arbiterPrivateKey);
 
-  const verifyViews = async (label: string, journey: SeedJourney, expectedMilestoneStatus: number) => {
+  const verifyViews = async (
+    label: string,
+    journey: SeedJourney,
+    expectedMilestoneStatus: number,
+    beforeSnapshot: BackendTruthSnapshot | null = null
+  ) => {
     await waitForTimelineEvents(journey.escrowAddress, journey.events);
 
     const [health, escrow, milestones, timeline, reputation] = await Promise.all([
@@ -490,27 +632,17 @@ async function executeJourneys(seed: SeedPayload) {
       getJson<Record<string, unknown>>(`${backendUrl}/users/${seed.participants.seller}/reputation`),
     ]);
 
-    assertFreshnessContract(health.sync as Freshness, `${label} /health.sync`);
-    assertFreshnessContract(escrow.freshness as Freshness, `${label} /escrow freshness`);
-    assertFreshnessContract(milestones.freshness as Freshness, `${label} /milestones freshness`);
-    assertFreshnessContract(timeline.freshness as Freshness, `${label} /timeline freshness`);
-    assertFreshnessContract(reputation.freshness as Freshness, `${label} /reputation freshness`);
-
-    const timelineItems = Array.isArray(timeline.items) ? (timeline.items as Array<Record<string, unknown>>) : [];
-    const timelineTypes = timelineItems
-      .map((item) => (typeof item.type === "string" ? item.type : ""))
-      .filter((item): item is string => item.length > 0);
-    assertTimelineContainsSubsequence(timelineTypes, journey.events, `${label} timeline`);
-
-    const milestoneItems = Array.isArray(milestones.items) ? (milestones.items as Array<Record<string, unknown>>) : [];
-    const milestone = milestoneItems.find((item) => Number(item.milestone_id) === journey.milestoneId);
-    assertCondition(milestone, `${label}: milestone ${journey.milestoneId} missing`);
-    assertCondition(
-      Number(milestone.status) === expectedMilestoneStatus,
-      `${label}: milestone status mismatch expected=${expectedMilestoneStatus} actual=${String(milestone.status)}`
+    const snapshot = captureBackendTruthSnapshot(
+      label,
+      journey,
+      { health, escrow, milestones, timeline, reputation },
+      expectedMilestoneStatus,
+      journey.events
     );
 
-    return { health, escrow, milestones, timeline, reputation };
+    assertRecoveryContinuity(beforeSnapshot, snapshot, journey.events);
+
+    return { health, escrow, milestones, timeline, reputation, snapshot };
   };
 
   const sendTx = async (fromKey: `0x${string}`, to: `0x${string}`, data: `0x${string}`) => {
@@ -547,12 +679,7 @@ async function executeJourneys(seed: SeedPayload) {
   await triggerSync();
 
   const happyViews = await verifyViews("happy", seed.journeys.happyPath, 7);
-  const happyClaim = (happyViews.timeline.items as Array<Record<string, unknown>>).find((item) => item.type === "MilestoneClaimed");
-  assertCondition(happyClaim, "happy: MilestoneClaimed missing");
-  assertCondition(
-    (happyClaim.truth as Record<string, unknown>)?.payoutAttribution === "buyer_approved",
-    "happy: expected payoutAttribution=buyer_approved"
-  );
+  assertCondition(happyViews.snapshot.claimAttribution === "buyer_approved", "happy: expected payoutAttribution=buyer_approved");
 
   // Timeout path: submit -> advance time -> claim.
   const timeoutSubmitTx = await sendTx(
@@ -577,10 +704,8 @@ async function executeJourneys(seed: SeedPayload) {
   await triggerSync();
 
   const timeoutViews = await verifyViews("timeout", seed.journeys.timeoutPath, 7);
-  const timeoutClaim = (timeoutViews.timeline.items as Array<Record<string, unknown>>).find((item) => item.type === "MilestoneClaimed");
-  assertCondition(timeoutClaim, "timeout: MilestoneClaimed missing");
   assertCondition(
-    (timeoutClaim.truth as Record<string, unknown>)?.payoutAttribution === "seller_timeout_or_unresolved",
+    timeoutViews.snapshot.claimAttribution === "seller_timeout_or_unresolved",
     "timeout: expected payoutAttribution=seller_timeout_or_unresolved"
   );
 
@@ -629,10 +754,7 @@ async function executeJourneys(seed: SeedPayload) {
   await triggerSyncWithRetry();
 
   const disputeViews = await verifyViews("dispute", seed.journeys.disputePath, sellerAward > 0n ? 7 : 8);
-  assertCondition(
-    ((disputeViews.escrow.truth as Record<string, unknown>)?.activeDispute as Record<string, unknown>)?.state === "none",
-    "dispute: escrow truth activeDispute.state should be none after resolution"
-  );
+  assertCondition(disputeViews.snapshot.activeDisputeState === "none", "dispute: escrow truth activeDispute.state should be none after resolution");
 
   assertCondition(normalizeAddress(seed.participants.buyer) === normalizeAddress(buyer.address), "seed buyer does not match runtime buyer key");
   assertCondition(normalizeAddress(seed.participants.seller) === normalizeAddress(seller.address), "seed seller does not match runtime seller key");
