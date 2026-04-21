@@ -4,9 +4,9 @@
 [![Slither](https://github.com/Pauhe/milestack/actions/workflows/slither.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/slither.yml)
 [![Backend](https://github.com/Pauhe/milestack/actions/workflows/backend.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/backend.yml)
 
-Milestack is a non-custodial milestone escrow platform for digital work on Ethereum L2s.
+Milestack is a non-custodial milestone escrow platform for digital work.
 
-It is designed for cases where buyers and sellers do not fully trust each other, especially in cross-border work. Funds are held in smart contracts, not by the platform. Sellers submit milestone deliverables, buyers approve or dispute within a review window, and sellers can claim payment after timeout if buyers stay silent.
+First launch is intentionally narrow: Base only, USDC only, one buyer + one seller + one arbiter per deal, sequential milestones, and public-by-default deal metadata. It is designed for cases where buyers and sellers do not fully trust each other, especially in cross-border work. Funds are held in smart contracts, not by the platform. Sellers submit milestone deliverables, buyers approve or dispute within a review window, and sellers can claim payment after timeout if buyers stay silent.
 
 ## Why This Exists
 
@@ -46,13 +46,22 @@ Why this segment:
 ## Product Principles
 
 - No platform custody
-- Explicit milestone states
+- Explicit payout rules and role-gated actions
 - Timeout-based release path to prevent payment stalling
 - Bounded human judgment only for disputes
 - Reputation based on real deal outcomes, not vanity metrics
-- Minimal MVP focused on Base and USDC
-- Sequential milestones only in the first release
+- Narrow first launch: Base only + USDC only
+- Sequential milestones only in first launch
 - User-selected arbiters, not a platform arbitration network
+- Public-by-default metadata in first launch
+
+## Launch Boundary Authority
+
+For first-launch scope decisions, treat the canonical boundary and recovery program as authoritative:
+- `.gsd/milestones/M001/slices/S02/canonical-launch-boundary.md`
+- `.gsd/milestones/M001/slices/S04/recovery-program.md`
+
+If any broad doc conflicts with those artifacts, those artifacts win until explicitly superseded.
 
 ## Repository Layout
 
@@ -103,10 +112,14 @@ Out of scope:
 - mutual settlement flow in v1
 - platform-managed arbiter marketplace
 
-## Near-Term Build Plan
+## Launch Program (Canonical Sequence)
 
-1. Implement `MilestoneEscrow` with a minimal sequential state machine.
-2. Add tests for valid paths, invalid transitions, deadlines, and fund conservation.
-3. Implement `EscrowFactory` and event indexing.
-4. Build the create-deal, deal overview, milestone action, and dispute screens.
-5. Validate the full flow with a narrow first-user segment on Base testnet.
+Launch-critical work is the recovery program `M002` through `M006`, in this order:
+1. `M002`: contract correctness and security proof
+2. `M003`: backend/read-model reliability
+3. `M004`: user-facing workflow clarity
+4. `M005`: full-system staging rehearsal
+5. `M006`: launch operability + documentation truth
+
+`M007` is intentionally **post-launch** and reserved for widening work (multi-chain, privacy, delegated permissions, multi-party topology, discovery, and other deferred expansion tracks).
+

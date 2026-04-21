@@ -2,7 +2,9 @@
 
 ## 1. Product Summary
 
-Milestack is a non-custodial milestone escrow platform for digital work on Ethereum L2s. It lets clients and service providers structure work as milestone-based agreements funded in stablecoins, with timeout-based payouts, dispute resolution, and reputation built from real transaction history.
+Milestack is a non-custodial milestone escrow platform for digital work.
+
+First launch is intentionally narrow and explicit: Base only, USDC only, one buyer + one seller + one arbiter per deal, sequential milestones, and public-by-default deal metadata. It lets clients and service providers structure work as milestone-based agreements funded in stablecoins, with timeout-based payouts, dispute resolution, and reputation built from real transaction history.
 
 Milestack is designed for situations where counterparties do not fully trust each other and where payment risk, cross-border friction, and platform custody are real problems.
 
@@ -89,7 +91,7 @@ Why this niche:
 - they already understand wallets and stablecoins
 - cross-border payment pain is real
 - milestone billing already exists in their workflow
-- they are more likely to accept Ethereum L2 UX
+- they are more likely to accept Base + USDC launch constraints
 
 ## 7. Core User Stories
 
@@ -699,41 +701,29 @@ These questions are no longer open for MVP:
 - the default review window is 5 days
 - deal visibility is public-by-default
 
-## 23. Suggested Roadmap
+## 23. Canonical Launch-vs-Post-Launch Roadmap
 
-### Phase 1: product definition
+This section is intentionally aligned to the canonical recovery artifacts:
+- `.gsd/milestones/M001/slices/S02/canonical-launch-boundary.md`
+- `.gsd/milestones/M001/slices/S04/recovery-program.md`
 
-- lock default review window and metadata shape
-- define milestone template guidance for agencies
-- define precise event schema for backend indexing
-- define first-user segment precisely
+### Launch-critical sequence (M002–M006)
 
-### Phase 2: contract MVP
+First launch requires this dependency spine:
+1. `M002` — contract correctness and security proof
+2. `M003` — read model, indexer, and API reliability
+3. `M004` — user-facing workflow clarity and product feel
+4. `M005` — full-system integration and staging-like rehearsal
+5. `M006` — launch operability and documentation truth
 
-- implement factory and escrow contracts
-- implement core milestone transitions
-- add comprehensive tests for edge cases
-- verify dispute and timeout logic
-- verify fee behavior and fund conservation with invariant-style tests
+### Post-launch widening (M007)
 
-### Phase 3: frontend MVP
+`M007` is intentionally post-launch and captures widening tracks that are explicitly deferred from first launch, including:
+- multi-chain expansion
+- private metadata/deals
+- delegated permissions
+- multi-party deal topology
+- discovery/marketplace surfaces
+- richer reputation and workflow tooling
 
-- wallet connect
-- create deal flow
-- fund and submit flow
-- approve or dispute flow
-- timeline and reputation views
-- add explanatory UX around dispute timing, arbiter role, and milestone blocking
-
-### Phase 4: launch wedge
-
-- onboard a narrow first user segment
-- gather dispute and review behavior data
-- refine milestone templates and reputation display
-
-### Phase 5: expansion
-
-- mutual settlement tooling
-- arbiter reputation
-- vertical templates for agency, dev, design, sponsorship, and DAO contributor deals
-- white-label or API workflows
+This split preserves the first-launch boundary while keeping expansion work explicit and near-term.
