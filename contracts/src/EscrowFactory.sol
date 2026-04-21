@@ -21,7 +21,7 @@ contract EscrowFactory {
     address public immutable feeRecipient;
     uint16 public immutable protocolFeeBps;
 
-    address public owner;
+    address public immutable owner;
     bool public creationPaused;
 
     constructor(address usdc_, address feeRecipient_, uint16 protocolFeeBps_) {

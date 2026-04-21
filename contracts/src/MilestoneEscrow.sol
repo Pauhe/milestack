@@ -123,11 +123,13 @@ contract MilestoneEscrow {
     function fundAllMilestones() external {
         if (msg.sender != dealConfig.buyer) revert Unauthorized();
         if (activeDisputeMilestoneId != type(uint256).max) revert ActiveDisputeExists();
-        if (currentMilestoneIndex >= milestones.length) revert InvalidMilestoneIndex();
+
+        uint256 milestoneCount_ = milestones.length;
+        if (currentMilestoneIndex >= milestoneCount_) revert InvalidMilestoneIndex();
 
         uint256 totalToFund;
 
-        for (uint256 i = currentMilestoneIndex; i < milestones.length; i++) {
+        for (uint256 i = currentMilestoneIndex; i < milestoneCount_; i++) {
             if (milestones[i].status != MilestoneStatus.PendingFunding) {
                 revert InvalidMilestoneState();
             }
@@ -136,7 +138,7 @@ contract MilestoneEscrow {
 
         _safeTransferFrom(msg.sender, address(this), totalToFund);
 
-        for (uint256 i = currentMilestoneIndex; i < milestones.length; i++) {
+        for (uint256 i = currentMilestoneIndex; i < milestoneCount_; i++) {
             milestones[i].status = MilestoneStatus.Funded;
             emit MilestoneFunded(i, milestones[i].amount);
         }
@@ -265,8 +267,9 @@ contract MilestoneEscrow {
         }
 
         uint256 cancelledCount;
+        uint256 milestoneCount_ = milestones.length;
 
-        for (uint256 i = currentMilestoneIndex; i < milestones.length; i++) {
+        for (uint256 i = currentMilestoneIndex; i < milestoneCount_; i++) {
             MilestoneStatus status = milestones[i].status;
 
             if (

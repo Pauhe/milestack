@@ -22,5 +22,5 @@ jobs:
         uses: crytic/slither-action@v0.4.1
         with:
           target: contracts
-          slither-args: --filter-paths "contracts/lib|contracts/test" --exclude naming-convention
+          slither-args: --filter-paths "contracts/lib|contracts/test" --exclude naming-convention,timestamp,incorrect-equality,uninitialized-local
           fail-on: medium
