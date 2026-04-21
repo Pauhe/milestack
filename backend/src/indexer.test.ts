@@ -245,6 +245,36 @@ test("rebuildIndexerFromPersistedEvents on empty canonical events table is stabl
   assert.equal(health.status, "healthy");
   assert.equal(health.phase, "idle");
   assert.equal(health.lastSuccessfulBlock, 0n);
+  assert.equal(health.lagBlocks, 0n);
+});
+
+test("syncIndexer marks stale status when metadata verification is degraded", async () => {
+  resetDb();
+
+  const client = createMockClient();
+  seedHistory(client, { includeEscrowCreated: true });
+  setIndexerPublicClient(client);
+
+  try {
+    upsertMetadataCache({
+      metadataHash: METADATA_HASH,
+      metadataUrl: "mock://broken",
+      verified: true,
+      payloadJson: null,
+      error: null,
+      updatedAtBlock: "0",
+    });
+
+    const result = await syncIndexer();
+    assert.equal(result.insertedEventCount, 6);
+
+    const health = getSyncHealthState();
+    assert.equal(health.status, "stale");
+    assert.equal(health.phase, "idle");
+    assert.match(health.lastError ?? "", /metadata verification degraded/);
+  } finally {
+    resetIndexerPublicClient();
+  }
 });
 
 test("rebuildIndexerFromPersistedEvents keeps degraded status visible when metadata cache is missing", async () => {

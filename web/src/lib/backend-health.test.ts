@@ -111,6 +111,16 @@ describe("getBackendFreshnessAssessment", () => {
     expect(assessment.message).toContain("8 blocks");
   });
 
+  it("maps degraded=true fresh payloads to stale for conservative route messaging", () => {
+    const assessment = getBackendFreshnessAssessment(
+      makeFreshness({ state: "fresh", degraded: true, lagBlocks: "1" })
+    );
+
+    expect(assessment.state).toBe("stale");
+    expect(assessment.degraded).toBe(true);
+    expect(assessment.message).toContain("stale");
+  });
+
   it("maps rebuilding status to rebuilding state", () => {
     const assessment = getBackendFreshnessAssessment(
       makeFreshness({ state: "rebuilding", degraded: true, status: "rebuilding" })

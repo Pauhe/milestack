@@ -1,0 +1,24 @@
+{
+  "ok": false,
+  "environment": "rehearsal-local",
+  "mode": "execute",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "backendUrl": "http://127.0.0.1:4100",
+  "startedAt": "2026-04-21T22:25:37.867Z",
+  "completedAt": "2026-04-21T22:25:37.980Z",
+  "phases": [
+    {
+      "phase": "execute",
+      "status": "running",
+      "details": "backend=http://127.0.0.1:4100",
+      "at": "2026-04-21T22:25:37.867Z"
+    },
+    {
+      "phase": "fatal",
+      "status": "failed",
+      "details": "happy timeline: expected subsequence EscrowCreated->MilestoneFunded->MilestoneSubmitted->MilestoneApproved->MilestoneClaimed not found in EscrowCreated",
+      "at": "2026-04-21T22:25:37.980Z"
+    }
+  ],
+  "error": "happy timeline: expected subsequence EscrowCreated->MilestoneFunded->MilestoneSubmitted->MilestoneApproved->MilestoneClaimed not found in EscrowCreated"
+}

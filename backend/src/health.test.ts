@@ -306,6 +306,18 @@ test("timeline endpoint preserves ambiguous-but-truthful claim attribution", asy
     payloadJson: JSON.stringify({ milestoneId: "1", sellerAmount: "100", feeAmount: "1" }),
   });
 
+  patchSyncHealthState({
+    lastAttemptedBlock: 120n,
+    lastAttemptedAt: "2026-02-01T00:02:00.000Z",
+    lastSuccessfulBlock: 120n,
+    lastSuccessfulAt: "2026-02-01T00:02:00.000Z",
+    chainHeadSeen: 120n,
+    lagBlocks: 0n,
+    phase: "idle",
+    status: "healthy",
+    lastError: null,
+  });
+
   const timeline = await jsonRequest(`/escrows/${ESCROW_ADDRESS}/timeline`);
   assert.equal(timeline.status, 200);
 

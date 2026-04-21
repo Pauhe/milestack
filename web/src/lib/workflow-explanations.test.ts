@@ -171,6 +171,16 @@ describe("getTimelineTruthExplanationCopy", () => {
 
     expect(copy).toBe("Truth note: claim-attribution-ambiguous.");
   });
+
+  it("keeps non-claim events conservative when timeline truth note is missing", () => {
+    const copy = getTimelineTruthExplanationCopy({
+      truthNote: null,
+      eventType: "MilestoneDisputed",
+    });
+
+    expect(copy).toContain("unavailable");
+    expect(copy).toContain("conservative");
+  });
 });
 
 describe("getDealOverviewTrustExplanationCopy", () => {
