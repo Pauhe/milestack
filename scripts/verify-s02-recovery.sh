@@ -312,14 +312,19 @@ log "environment=${DEPLOY_ENVIRONMENT} backend=${BACKEND_URL} web=${WEB_URL} rpc
 run_started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 continuity_ok="false"
 
-phase_begin "baseline-s01-rehearsal"
-if bash "${ROOT_DIR}/scripts/verify-s01-rehearsal.sh"; then
-  phase_end "baseline-s01-rehearsal" "complete" "s01 canonical flow passed"
+if [[ "${REHEARSAL_RECOVERY_SKIP_S01:-0}" == "1" ]]; then
+  phase_begin "baseline-s01-rehearsal"
+  phase_end "baseline-s01-rehearsal" "complete" "skipped because REHEARSAL_RECOVERY_SKIP_S01=1"
 else
-  phase_end "baseline-s01-rehearsal" "failed" "s01 canonical flow failed"
-  run_completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  build_recovery_artifact "$run_started_at" "$run_completed_at" "$continuity_ok"
-  exit 1
+  phase_begin "baseline-s01-rehearsal"
+  if bash "${ROOT_DIR}/scripts/verify-s01-rehearsal.sh"; then
+    phase_end "baseline-s01-rehearsal" "complete" "s01 canonical flow passed"
+  else
+    phase_end "baseline-s01-rehearsal" "failed" "s01 canonical flow failed"
+    run_completed_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    build_recovery_artifact "$run_started_at" "$run_completed_at" "$continuity_ok"
+    exit 1
+  fi
 fi
 
 phase_begin "post-baseline-service-start"

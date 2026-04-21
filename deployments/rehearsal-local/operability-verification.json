@@ -1,0 +1,62 @@
+{
+  "ok": true,
+  "verdict": "pass",
+  "detail": "launch-operability verdict PASS",
+  "environment": "rehearsal-local",
+  "rpcUrl": "http://127.0.0.1:8545",
+  "backendUrl": "http://127.0.0.1:4100",
+  "webUrl": "http://127.0.0.1:3000",
+  "inputs": {
+    "rehearsalArtifact": "<repo-root>/deployments/rehearsal-local/rehearsal-verification.json",
+    "recoveryArtifact": "<repo-root>/deployments/rehearsal-local/rehearsal-recovery-verification.json",
+    "browserArtifactDir": "<repo-root>/deployments/rehearsal-local/browser-evidence"
+  },
+  "abortThresholds": {
+    "maxLagBlocks": 0,
+    "allowDegraded": true,
+    "requiredSyncStatus": "stale",
+    "maxStaleHealthSnapshots": 3,
+    "maxMissingBrowserEvidence": 0
+  },
+  "runStartedAt": "2026-04-21T23:58:18Z",
+  "runCompletedAt": "2026-04-21T23:58:49Z",
+  "failurePhase": null,
+  "failureReason": null,
+  "phases": [
+    {
+      "phase": "baseline-rehearsal",
+      "status": "complete",
+      "detail": "s01 rehearsal verifier passed",
+      "startedAt": "2026-04-21T23:58:18Z",
+      "endedAt": "2026-04-21T23:58:40Z"
+    },
+    {
+      "phase": "recovery-proof",
+      "status": "complete",
+      "detail": "s02 recovery verifier passed",
+      "startedAt": "2026-04-21T23:58:41Z",
+      "endedAt": "2026-04-21T23:58:49Z"
+    },
+    {
+      "phase": "artifact-contract-check",
+      "status": "complete",
+      "detail": "artifacts + browser evidence validated",
+      "startedAt": "2026-04-21T23:58:49Z",
+      "endedAt": "2026-04-21T23:58:49Z"
+    },
+    {
+      "phase": "abort-threshold-check",
+      "status": "complete",
+      "detail": "abort thresholds satisfied",
+      "startedAt": "2026-04-21T23:58:49Z",
+      "endedAt": "2026-04-21T23:58:49Z"
+    },
+    {
+      "phase": "final-verdict",
+      "status": "complete",
+      "detail": "launch-operability verdict: PASS",
+      "startedAt": "2026-04-21T23:58:49Z",
+      "endedAt": "2026-04-21T23:58:49Z"
+    }
+  ]
+}
