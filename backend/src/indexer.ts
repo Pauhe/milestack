@@ -498,7 +498,9 @@ function applyEscrowLifecycleEvent(escrow: RebuildEscrow, event: ParsedEventEnve
         return;
       }
 
-      milestone.status = 3;
+      if (milestone.status !== milestoneTerminalStatus.paidOut) {
+        milestone.status = 3;
+      }
       break;
     }
     case "MilestoneDisputed": {

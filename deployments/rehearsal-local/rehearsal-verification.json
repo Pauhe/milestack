@@ -1,24 +1,44 @@
 {
-  "ok": false,
+  "ok": true,
   "environment": "rehearsal-local",
   "mode": "execute",
   "rpcUrl": "http://127.0.0.1:8545",
   "backendUrl": "http://127.0.0.1:4100",
-  "startedAt": "2026-04-21T22:25:37.867Z",
-  "completedAt": "2026-04-21T22:25:37.980Z",
+  "startedAt": "2026-04-21T22:50:16.196Z",
+  "completedAt": "2026-04-21T22:50:16.395Z",
   "phases": [
     {
       "phase": "execute",
       "status": "running",
       "details": "backend=http://127.0.0.1:4100",
-      "at": "2026-04-21T22:25:37.867Z"
+      "at": "2026-04-21T22:50:16.196Z"
     },
     {
-      "phase": "fatal",
-      "status": "failed",
-      "details": "happy timeline: expected subsequence EscrowCreated->MilestoneFunded->MilestoneSubmitted->MilestoneApproved->MilestoneClaimed not found in EscrowCreated",
-      "at": "2026-04-21T22:25:37.980Z"
+      "phase": "execute",
+      "status": "complete",
+      "details": "all journeys verified through backend truth surfaces",
+      "at": "2026-04-21T22:50:16.395Z"
     }
   ],
-  "error": "happy timeline: expected subsequence EscrowCreated->MilestoneFunded->MilestoneSubmitted->MilestoneApproved->MilestoneClaimed not found in EscrowCreated"
+  "bootstrap": null,
+  "execute": {
+    "happyPath": {
+      "escrowAddress": "0xf7B9dc26255f3E15570C30E0d07207Dfcd43646f",
+      "submitTxHash": "0x5959db9b2324f4e8044d08bba220f9594224ee4c1cdf2dea66eaad97220626b1",
+      "approveTxHash": "0x59b5c56077106f2832fa82725948c4fb42114e57f6f98418bb6b212982963b7a"
+    },
+    "timeoutPath": {
+      "escrowAddress": "0xFD7F5BeC90f797bfE5A9E73083efee1eb920E0B0",
+      "submitTxHash": "0xba3e69b46cf1101061adfeaab718705df5ea8e8be4d2adf7a2e5a9de50a6606d",
+      "claimTxHash": "0x45d0e509bb098ae6df4b1056f63eaac3364eaaf8610d4e9a5b3ed604a7da4847"
+    },
+    "disputePath": {
+      "escrowAddress": "0xF1B8d9714F66739Ad09D87B6Baf5638E6Cec4FF5",
+      "submitTxHash": "0x38d03c6d31541439bb5c7eea5e9adacb074b301cc83ac9f1c2ba74649237accd",
+      "openDisputeTxHash": "0x01943b1f0cbd6fd657471bf4de25e832b92b6a1fc2b5d71ee5b7a08ed80ca3da",
+      "resolveDisputeTxHash": "0xe0f903eb23ae352aa8fe4809fe5f293e1d39723497a15557356a9fd72a4ea8b9",
+      "buyerAward": "400000",
+      "sellerAward": "600000"
+    }
+  }
 }

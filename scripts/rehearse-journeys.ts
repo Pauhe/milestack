@@ -303,15 +303,17 @@ async function bootstrapRuntime() {
   });
   await walletClient.sendTransaction({ account: deployer, to: usdcAddress, data: mintData });
 
-  const approveData = encodeFunctionData({
+  const buyerTokenClient = createWalletClient({ account: buyer, transport: http(rpcUrl) });
+
+  const approveFactoryData = encodeFunctionData({
     abi: mockErc20Abi,
     functionName: "approve",
     args: [factoryAddress, milestoneAmount * 3n],
   });
-  await createWalletClient({ account: buyer, transport: http(rpcUrl) }).sendTransaction({
+  await buyerTokenClient.sendTransaction({
     account: buyer,
     to: usdcAddress,
-    data: approveData,
+    data: approveFactoryData,
     gas: 200_000n,
   });
 
@@ -348,6 +350,18 @@ async function bootstrapRuntime() {
     });
     assertCondition(decoded.eventName === "EscrowCreated", `${name} escrow creation event mismatch`);
     const escrowAddress = (decoded.args as { escrow: string }).escrow as `0x${string}`;
+
+    const approveEscrowData = encodeFunctionData({
+      abi: mockErc20Abi,
+      functionName: "approve",
+      args: [escrowAddress, milestoneAmount],
+    });
+    await buyerTokenClient.sendTransaction({
+      account: buyer,
+      to: usdcAddress,
+      data: approveEscrowData,
+      gas: 200_000n,
+    });
 
     const fundData = encodeFunctionData({
       abi: milestoneEscrowAbi,
@@ -429,7 +443,7 @@ async function bootstrapRuntime() {
         escrowAddress: happyEscrow,
         dealId: "rehearsal-happy-001",
         milestoneId: 0,
-        events: ["EscrowCreated", "MilestoneFunded", "MilestoneSubmitted", "MilestoneApproved", "MilestoneClaimed"],
+        events: ["EscrowCreated", "MilestoneFunded", "MilestoneSubmitted", "MilestoneClaimed", "MilestoneApproved"],
       },
       timeoutPath: {
         escrowAddress: timeoutEscrow,

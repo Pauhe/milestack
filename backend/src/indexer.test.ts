@@ -372,16 +372,16 @@ function seedHistory(client: ReturnType<typeof createMockClient>, options: { inc
       "0x1000000000000000000000000000000000000000000000000000000000000102",
       0
     ),
-    createLog(milestoneEscrowAbi, "MilestoneApproved", { milestoneId: 0n }, 103n, "0x1000000000000000000000000000000000000000000000000000000000000103", 0),
     createLog(
       milestoneEscrowAbi,
       "MilestoneClaimed",
       { milestoneId: 0n, sellerAmount: 990n, feeAmount: 10n },
-      104n,
-      "0x1000000000000000000000000000000000000000000000000000000000000104",
+      103n,
+      "0x1000000000000000000000000000000000000000000000000000000000000103",
       0
     ),
-    createLog(milestoneEscrowAbi, "DealCompleted", {}, 105n, "0x1000000000000000000000000000000000000000000000000000000000000105", 0),
+    createLog(milestoneEscrowAbi, "MilestoneApproved", { milestoneId: 0n }, 103n, "0x1000000000000000000000000000000000000000000000000000000000000103", 1),
+    createLog(milestoneEscrowAbi, "DealCompleted", {}, 104n, "0x1000000000000000000000000000000000000000000000000000000000000104", 0),
   ]);
 }
 

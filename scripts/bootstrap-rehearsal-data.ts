@@ -31,7 +31,7 @@ const journeys = {
     escrowAddress: "0x1000000000000000000000000000000000000101",
     dealId: "rehearsal-happy-001",
     milestoneId: 0,
-    events: ["EscrowCreated", "MilestoneFunded", "MilestoneSubmitted", "MilestoneApproved", "MilestoneClaimed"],
+    events: ["EscrowCreated", "MilestoneFunded", "MilestoneSubmitted", "MilestoneClaimed", "MilestoneApproved"],
   },
   timeoutPath: {
     escrowAddress: "0x1000000000000000000000000000000000000202",

@@ -8,6 +8,9 @@ import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 const publicClient = createPublicClient({
   chain: configuredChain,
   transport: http(),
+  batch: {
+    multicall: false,
+  },
 });
 
 export type EscrowMilestone = {
@@ -81,25 +84,6 @@ export function getDefaultEscrowAddress(): Address | null {
 }
 
 export async function readEscrowOverview(address: Address): Promise<EscrowOverview> {
-  const result = await publicClient.multicall({
-    contracts: [
-      { address, abi: milestoneEscrowAbi, functionName: "buyer" },
-      { address, abi: milestoneEscrowAbi, functionName: "seller" },
-      { address, abi: milestoneEscrowAbi, functionName: "arbiter" },
-      { address, abi: milestoneEscrowAbi, functionName: "token" },
-      { address, abi: milestoneEscrowAbi, functionName: "metadataHash" },
-      { address, abi: milestoneEscrowAbi, functionName: "dealStatus" },
-      { address, abi: milestoneEscrowAbi, functionName: "currentMilestoneIndex" },
-      { address, abi: milestoneEscrowAbi, functionName: "activeDisputeMilestoneId" },
-      { address, abi: milestoneEscrowAbi, functionName: "totalFunded" },
-      { address, abi: milestoneEscrowAbi, functionName: "totalReleasedToSeller" },
-      { address, abi: milestoneEscrowAbi, functionName: "totalRefundedToBuyer" },
-      { address, abi: milestoneEscrowAbi, functionName: "totalFeesCollected" },
-      { address, abi: milestoneEscrowAbi, functionName: "milestoneCount" },
-    ],
-    allowFailure: false,
-  });
-
   const [
     buyer,
     seller,
@@ -114,7 +98,21 @@ export async function readEscrowOverview(address: Address): Promise<EscrowOvervi
     totalRefundedToBuyer,
     totalFeesCollected,
     milestoneCount,
-  ] = result;
+  ] = await Promise.all([
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "buyer" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "seller" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "arbiter" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "token" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "metadataHash" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "dealStatus" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "currentMilestoneIndex" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "activeDisputeMilestoneId" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "totalFunded" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "totalReleasedToSeller" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "totalRefundedToBuyer" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "totalFeesCollected" }),
+    publicClient.readContract({ address, abi: milestoneEscrowAbi, functionName: "milestoneCount" }),
+  ]);
 
   const buyerAddress = buyer as Address;
   const sellerAddress = seller as Address;

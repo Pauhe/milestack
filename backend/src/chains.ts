@@ -1,8 +1,8 @@
-import { base, baseSepolia, type Chain } from "viem/chains";
+import { anvil, base, baseSepolia, type Chain } from "viem/chains";
 
 import { backendConfig } from "./config.js";
 
-const supportedChains = [base, baseSepolia] as const;
+const supportedChains = [anvil, base, baseSepolia] as const;
 
 export function getConfiguredChain(): Chain {
   return (
