@@ -6,19 +6,19 @@
     "name": "anvil"
   },
   "deployedAt": {
-    "blockNumber": 329,
-    "timestamp": "2026-04-21T23:14:21.180Z",
-    "txHash": "0x7334ccd5c723b3d83be41da14ba6300c029dc134d319cf3ec3c6860b6c2c19c1"
+    "blockNumber": 387,
+    "timestamp": "2026-04-21T23:16:13.600Z",
+    "txHash": "0x5e91f942ea7490ca016d5fe88b741b799779888c0002fc4d8403f8e6c9acd9b6"
   },
   "contracts": {
     "escrowFactory": {
-      "address": "0x276c216d241856199a83bf27b2286659e5b877d3",
-      "deploymentTxHash": "0x7334ccd5c723b3d83be41da14ba6300c029dc134d319cf3ec3c6860b6c2c19c1",
+      "address": "0x5fc748f1feb28d7b76fa1c6b07d8ba2d5535177c",
+      "deploymentTxHash": "0x5e91f942ea7490ca016d5fe88b741b799779888c0002fc4d8403f8e6c9acd9b6",
       "verified": false
     }
   },
   "config": {
-    "usdc": "0xfaaddc93baf78e89dcf37ba67943e1be8f37bb8c",
+    "usdc": "0x38a024c0b412b9d1db8bc398140d00f5af3093d4",
     "feeRecipient": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
     "protocolFeeBps": 100,
     "creationPauseSupported": true,

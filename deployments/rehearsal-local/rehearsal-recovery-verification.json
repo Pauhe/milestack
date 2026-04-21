@@ -4,8 +4,8 @@
   "backendUrl": "http://127.0.0.1:4100",
   "webUrl": "http://127.0.0.1:3000",
   "seedPath": "<repo-root>/deployments/rehearsal-local/seeded-journeys.json",
-  "runStartedAt": "2026-04-21T23:14:20Z",
-  "runCompletedAt": "2026-04-21T23:14:42Z",
+  "runStartedAt": "2026-04-21T23:16:12Z",
+  "runCompletedAt": "2026-04-21T23:16:34Z",
   "failurePhase": null,
   "failureReason": null,
   "continuity": {
@@ -17,22 +17,22 @@
       "ok": true,
       "environment": "rehearsal-local",
       "chainId": 31337,
-      "factoryAddress": "0x276c216d241856199a83bf27b2286659e5b877d3",
+      "factoryAddress": "0x5fc748f1feb28d7b76fa1c6b07d8ba2d5535177c",
       "sync": {
-        "indexedBlock": "348",
-        "chainHead": "348",
+        "indexedBlock": "406",
+        "chainHead": "406",
         "lagBlocks": "0",
-        "lastSuccessfulAt": "2026-04-21T23:14:35.450Z",
-        "lastAttemptedAt": "2026-04-21T23:14:35.407Z",
+        "lastSuccessfulAt": "2026-04-21T23:16:27.587Z",
+        "lastAttemptedAt": "2026-04-21T23:16:27.542Z",
         "phase": "idle",
         "status": "stale",
         "freshness": "stale",
         "degraded": true,
-        "lastError": "metadata verification degraded: 0xbbce61359f9e36351804b534268ae8637d94c1558199dc5c2180f9c708bcb8e8: missing metadata cache; 0x5a1154ca02d12bf53cc87d29b2ae3ae12348c2343aea449829aa501a38682eb6: missing metadata cache; 0xf36e486aa667d04666290a122a65b3406fa4d25d888c2dc103041cfdf456b23a: missing metadata cache",
+        "lastError": "metadata verification degraded: 0xcfafdb1aa96a71917c82175c38e2e9d7273fc6ac5287cdb013464f8a1be78fef: missing metadata cache; 0x1808eb091a659c073cebb6736ac75c744b18671da93775038cf10411e4339894: missing metadata cache; 0x55ff022461cedb9ceffc3c86d2774bce449b87d8fcbf0d234e0ef52ddab8130f: missing metadata cache",
         "loop": {
           "isSyncing": false,
           "activeSyncStartedAt": null,
-          "lastSyncAt": "2026-04-21T23:14:35.451Z",
+          "lastSyncAt": "2026-04-21T23:16:27.588Z",
           "lastSyncError": null
         }
       }
@@ -41,22 +41,22 @@
       "ok": true,
       "environment": "rehearsal-local",
       "chainId": 31337,
-      "factoryAddress": "0x276c216d241856199a83bf27b2286659e5b877d3",
+      "factoryAddress": "0x5fc748f1feb28d7b76fa1c6b07d8ba2d5535177c",
       "sync": {
-        "indexedBlock": "348",
-        "chainHead": "348",
+        "indexedBlock": "406",
+        "chainHead": "406",
         "lagBlocks": "0",
-        "lastSuccessfulAt": "2026-04-21T23:14:35.450Z",
-        "lastAttemptedAt": "2026-04-21T23:14:35.407Z",
+        "lastSuccessfulAt": "2026-04-21T23:16:27.587Z",
+        "lastAttemptedAt": "2026-04-21T23:16:27.542Z",
         "phase": "idle",
         "status": "stale",
         "freshness": "stale",
         "degraded": true,
-        "lastError": "metadata verification degraded: 0xbbce61359f9e36351804b534268ae8637d94c1558199dc5c2180f9c708bcb8e8: missing metadata cache; 0x5a1154ca02d12bf53cc87d29b2ae3ae12348c2343aea449829aa501a38682eb6: missing metadata cache; 0xf36e486aa667d04666290a122a65b3406fa4d25d888c2dc103041cfdf456b23a: missing metadata cache",
+        "lastError": "metadata verification degraded: 0xcfafdb1aa96a71917c82175c38e2e9d7273fc6ac5287cdb013464f8a1be78fef: missing metadata cache; 0x1808eb091a659c073cebb6736ac75c744b18671da93775038cf10411e4339894: missing metadata cache; 0x55ff022461cedb9ceffc3c86d2774bce449b87d8fcbf0d234e0ef52ddab8130f: missing metadata cache",
         "loop": {
           "isSyncing": false,
           "activeSyncStartedAt": null,
-          "lastSyncAt": "2026-04-21T23:14:35.451Z",
+          "lastSyncAt": "2026-04-21T23:16:27.588Z",
           "lastSyncError": null
         }
       }
@@ -65,22 +65,22 @@
       "ok": true,
       "environment": "rehearsal-local",
       "chainId": 31337,
-      "factoryAddress": "0x276c216d241856199a83bf27b2286659e5b877d3",
+      "factoryAddress": "0x5fc748f1feb28d7b76fa1c6b07d8ba2d5535177c",
       "sync": {
-        "indexedBlock": "348",
-        "chainHead": "348",
+        "indexedBlock": "406",
+        "chainHead": "406",
         "lagBlocks": "0",
-        "lastSuccessfulAt": "2026-04-21T23:14:38.997Z",
-        "lastAttemptedAt": "2026-04-21T23:14:38.993Z",
+        "lastSuccessfulAt": "2026-04-21T23:16:31.174Z",
+        "lastAttemptedAt": "2026-04-21T23:16:31.170Z",
         "phase": "idle",
         "status": "stale",
         "freshness": "stale",
         "degraded": true,
-        "lastError": "metadata verification degraded: 0xbbce61359f9e36351804b534268ae8637d94c1558199dc5c2180f9c708bcb8e8: missing metadata cache; 0x5a1154ca02d12bf53cc87d29b2ae3ae12348c2343aea449829aa501a38682eb6: missing metadata cache; 0xf36e486aa667d04666290a122a65b3406fa4d25d888c2dc103041cfdf456b23a: missing metadata cache",
+        "lastError": "metadata verification degraded: 0xcfafdb1aa96a71917c82175c38e2e9d7273fc6ac5287cdb013464f8a1be78fef: missing metadata cache; 0x1808eb091a659c073cebb6736ac75c744b18671da93775038cf10411e4339894: missing metadata cache; 0x55ff022461cedb9ceffc3c86d2774bce449b87d8fcbf0d234e0ef52ddab8130f: missing metadata cache",
         "loop": {
           "isSyncing": false,
           "activeSyncStartedAt": null,
-          "lastSyncAt": "2026-04-21T23:14:38.997Z",
+          "lastSyncAt": "2026-04-21T23:16:31.175Z",
           "lastSyncError": null
         }
       }
@@ -91,92 +91,92 @@
       "phase": "baseline-s01-rehearsal",
       "status": "complete",
       "detail": "s01 canonical flow passed",
-      "startedAt": "2026-04-21T23:14:20Z",
-      "endedAt": "2026-04-21T23:14:34Z"
+      "startedAt": "2026-04-21T23:16:12Z",
+      "endedAt": "2026-04-21T23:16:26Z"
     },
     {
       "phase": "post-baseline-service-start",
       "status": "complete",
       "detail": "backend/web restarted for before-restart snapshot",
-      "startedAt": "2026-04-21T23:14:34Z",
-      "endedAt": "2026-04-21T23:14:35Z"
+      "startedAt": "2026-04-21T23:16:26Z",
+      "endedAt": "2026-04-21T23:16:27Z"
     },
     {
       "phase": "capture-before-restart-health",
       "status": "complete",
       "detail": "health snapshot captured",
-      "startedAt": "2026-04-21T23:14:35Z",
-      "endedAt": "2026-04-21T23:14:35Z"
+      "startedAt": "2026-04-21T23:16:27Z",
+      "endedAt": "2026-04-21T23:16:27Z"
     },
     {
       "phase": "managed-restart-backend",
       "status": "complete",
       "detail": "backend process stopped and index DB reset",
-      "startedAt": "2026-04-21T23:14:35Z",
-      "endedAt": "2026-04-21T23:14:35Z"
+      "startedAt": "2026-04-21T23:16:27Z",
+      "endedAt": "2026-04-21T23:16:27Z"
     },
     {
       "phase": "managed-restart-web",
       "status": "complete",
       "detail": "web process stopped for optional restart phase",
-      "startedAt": "2026-04-21T23:14:35Z",
-      "endedAt": "2026-04-21T23:14:35Z"
+      "startedAt": "2026-04-21T23:16:27Z",
+      "endedAt": "2026-04-21T23:16:27Z"
     },
     {
       "phase": "capture-during-recovery-health",
       "status": "complete",
       "detail": "health snapshot captured",
-      "startedAt": "2026-04-21T23:14:35Z",
-      "endedAt": "2026-04-21T23:14:35Z"
+      "startedAt": "2026-04-21T23:16:28Z",
+      "endedAt": "2026-04-21T23:16:28Z"
     },
     {
       "phase": "browser-degraded-proof",
       "status": "complete",
       "detail": "degraded-state route assertions passed",
-      "startedAt": "2026-04-21T23:14:35Z",
-      "endedAt": "2026-04-21T23:14:38Z"
+      "startedAt": "2026-04-21T23:16:28Z",
+      "endedAt": "2026-04-21T23:16:30Z"
     },
     {
       "phase": "post-restart-services",
       "status": "complete",
       "detail": "backend/web restarted and reachable",
-      "startedAt": "2026-04-21T23:14:38Z",
-      "endedAt": "2026-04-21T23:14:38Z"
+      "startedAt": "2026-04-21T23:16:30Z",
+      "endedAt": "2026-04-21T23:16:30Z"
     },
     {
       "phase": "post-restart-truth-replay",
       "status": "complete",
       "detail": "execute replay checks passed",
-      "startedAt": "2026-04-21T23:14:38Z",
-      "endedAt": "2026-04-21T23:14:39Z"
+      "startedAt": "2026-04-21T23:16:30Z",
+      "endedAt": "2026-04-21T23:16:31Z"
     },
     {
       "phase": "capture-after-recovery-health",
       "status": "complete",
       "detail": "health snapshot captured",
-      "startedAt": "2026-04-21T23:14:39Z",
-      "endedAt": "2026-04-21T23:14:39Z"
+      "startedAt": "2026-04-21T23:16:31Z",
+      "endedAt": "2026-04-21T23:16:31Z"
     },
     {
       "phase": "assert-continuity-artifacts",
       "status": "complete",
       "detail": "seed + execute continuity assertions passed",
-      "startedAt": "2026-04-21T23:14:39Z",
-      "endedAt": "2026-04-21T23:14:39Z"
+      "startedAt": "2026-04-21T23:16:31Z",
+      "endedAt": "2026-04-21T23:16:31Z"
     },
     {
       "phase": "browser-recovery-proof",
       "status": "complete",
       "detail": "recovery route assertions passed",
-      "startedAt": "2026-04-21T23:14:39Z",
-      "endedAt": "2026-04-21T23:14:42Z"
+      "startedAt": "2026-04-21T23:16:31Z",
+      "endedAt": "2026-04-21T23:16:34Z"
     },
     {
       "phase": "browser-artifact-gating",
       "status": "complete",
       "detail": "required screenshots present",
-      "startedAt": "2026-04-21T23:14:42Z",
-      "endedAt": "2026-04-21T23:14:42Z"
+      "startedAt": "2026-04-21T23:16:34Z",
+      "endedAt": "2026-04-21T23:16:34Z"
     }
   ],
   "browserArtifacts": {
