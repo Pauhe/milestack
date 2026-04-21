@@ -243,35 +243,6 @@ export default async function DisputePage({ params }: DisputePageProps) {
         </article>
       ) : null}
 
-      <section className="grid-two">
-        <article className="panel stack-md">
-          <h2>Dispute context</h2>
-          <ul className="plain-list stack-sm">
-            <li>Status: {getMilestoneStatusLabel(backendMilestone?.status ?? milestone.status)}</li>
-            <li>Locked amount: {formatUsdc(BigInt(backendMilestone?.amount ?? milestone.amount))}</li>
-            <li>Submitted at: {formatTimestamp(BigInt(backendMilestone?.submitted_at ?? milestone.submittedAt))}</li>
-            <li>Review deadline: {formatTimestamp(BigInt(backendMilestone?.review_deadline ?? milestone.reviewDeadline))}</li>
-            <li>Evidence hash: {backendMilestone?.evidence_hash ?? milestone.evidenceHash}</li>
-            <li>Dispute hash: {backendMilestone?.dispute_hash ?? milestone.disputeHash}</li>
-            <li>Arbiter: {backendOverview?.arbiter_address ?? overview.arbiter}</li>
-          </ul>
-        </article>
-
-        <article className="panel stack-md">
-          <h2>Resolution rules</h2>
-          <p>
-            Buyer and seller awards must sum exactly to the milestone amount. Fees apply only to
-            the seller-side payout amount.
-          </p>
-          <p className="status-text" data-testid="dispute-authority-explanation">
-            Authority boundary: {disputeAuthorityExplanation}
-          </p>
-          <p className="status-text" data-testid="dispute-finality-explanation">
-            Finality boundary: {disputeFinalityExplanation}
-          </p>
-        </article>
-      </section>
-
       <WorkflowSurfacePanel data-testid="dispute-workflow-guidance">
         <WorkflowSectionHeader
           eyebrow="Workflow guidance"
@@ -308,8 +279,37 @@ export default async function DisputePage({ params }: DisputePageProps) {
         ) : null}
       </WorkflowSurfacePanel>
 
-      <section className="grid-two">
-        <article className="panel stack-md">
+      <section className="grid-two" data-testid="dispute-truth-grid">
+        <article className="panel stack-md" data-testid="dispute-context-panel">
+          <h2>Dispute context</h2>
+          <ul className="plain-list stack-sm">
+            <li>Status: {getMilestoneStatusLabel(backendMilestone?.status ?? milestone.status)}</li>
+            <li>Locked amount: {formatUsdc(BigInt(backendMilestone?.amount ?? milestone.amount))}</li>
+            <li>Submitted at: {formatTimestamp(BigInt(backendMilestone?.submitted_at ?? milestone.submittedAt))}</li>
+            <li>Review deadline: {formatTimestamp(BigInt(backendMilestone?.review_deadline ?? milestone.reviewDeadline))}</li>
+            <li>Evidence hash: {backendMilestone?.evidence_hash ?? milestone.evidenceHash}</li>
+            <li>Dispute hash: {backendMilestone?.dispute_hash ?? milestone.disputeHash}</li>
+            <li>Arbiter: {backendOverview?.arbiter_address ?? overview.arbiter}</li>
+          </ul>
+        </article>
+
+        <article className="panel stack-md" data-testid="dispute-rules-panel">
+          <h2>Resolution rules</h2>
+          <p>
+            Buyer and seller awards must sum exactly to the milestone amount. Fees apply only to
+            the seller-side payout amount.
+          </p>
+          <p className="status-text" data-testid="dispute-authority-explanation">
+            Authority boundary: {disputeAuthorityExplanation}
+          </p>
+          <p className="status-text" data-testid="dispute-finality-explanation">
+            Finality boundary: {disputeFinalityExplanation}
+          </p>
+        </article>
+      </section>
+
+      <section className="grid-two" data-testid="dispute-verification-grid">
+        <article className="panel stack-md" data-testid="dispute-metadata-panel">
           <div className="eyebrow">Metadata verification</div>
           <h2>Submission metadata truth</h2>
           <p className="status-text">Verification status: {metadataAssessment.state}</p>
@@ -323,7 +323,7 @@ export default async function DisputePage({ params }: DisputePageProps) {
           </ul>
         </article>
 
-        <article className="panel stack-md">
+        <article className="panel stack-md" data-testid="dispute-hash-context-panel">
           <div className="eyebrow">Hash context truth</div>
           <h2>Evidence + dispute references</h2>
           <ul className="plain-list stack-sm">

@@ -198,34 +198,6 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
         </article>
       ) : null}
 
-      <section className="grid-two">
-        <article className="panel stack-md">
-          <h2>Primary milestone data</h2>
-          <ul className="plain-list stack-sm">
-            <li>Amount: {formatUsdc(BigInt(backendMilestone?.amount ?? milestone.amount))}</li>
-            <li>Status: {getMilestoneStatusLabel(backendMilestone?.status ?? milestone.status)}</li>
-            <li>Review window: {backendMilestone?.review_window_seconds ?? milestone.reviewWindowSeconds} seconds</li>
-            <li>Submitted at: {formatTimestamp(BigInt(backendMilestone?.submitted_at ?? milestone.submittedAt))}</li>
-            <li>Review deadline: {formatTimestamp(BigInt(backendMilestone?.review_deadline ?? milestone.reviewDeadline))}</li>
-            <li>Evidence hash: {backendMilestone?.evidence_hash ?? milestone.evidenceHash}</li>
-            <li>Dispute hash: {backendMilestone?.dispute_hash ?? milestone.disputeHash}</li>
-            <li>Buyer award: {formatUsdc(BigInt(backendMilestone?.buyer_award ?? milestone.buyerAward))}</li>
-            <li>Seller award: {formatUsdc(BigInt(backendMilestone?.seller_award ?? milestone.sellerAward))}</li>
-          </ul>
-        </article>
-
-        <article className="panel stack-md">
-          <h2>Deal context</h2>
-          <ul className="plain-list stack-sm">
-            <li>Buyer: {backendOverview?.buyer_address ?? overview.buyer}</li>
-            <li>Seller: {backendOverview?.seller_address ?? overview.seller}</li>
-            <li>Arbiter: {backendOverview?.arbiter_address ?? overview.arbiter}</li>
-            <li>Token: {backendOverview?.token_address ?? overview.token}</li>
-            <li>Escrow: {backendOverview?.address ?? overview.address}</li>
-          </ul>
-        </article>
-      </section>
-
       <WorkflowSurfacePanel data-testid="milestone-workflow-guidance">
         <WorkflowSectionHeader
           eyebrow="Workflow guidance"
@@ -265,7 +237,35 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
         ) : null}
       </WorkflowSurfacePanel>
 
-      <article className="panel stack-md">
+      <section className="grid-two" data-testid="milestone-truth-grid">
+        <article className="panel stack-md" data-testid="milestone-primary-data-panel">
+          <h2>Primary milestone data</h2>
+          <ul className="plain-list stack-sm">
+            <li>Amount: {formatUsdc(BigInt(backendMilestone?.amount ?? milestone.amount))}</li>
+            <li>Status: {getMilestoneStatusLabel(backendMilestone?.status ?? milestone.status)}</li>
+            <li>Review window: {backendMilestone?.review_window_seconds ?? milestone.reviewWindowSeconds} seconds</li>
+            <li>Submitted at: {formatTimestamp(BigInt(backendMilestone?.submitted_at ?? milestone.submittedAt))}</li>
+            <li>Review deadline: {formatTimestamp(BigInt(backendMilestone?.review_deadline ?? milestone.reviewDeadline))}</li>
+            <li>Evidence hash: {backendMilestone?.evidence_hash ?? milestone.evidenceHash}</li>
+            <li>Dispute hash: {backendMilestone?.dispute_hash ?? milestone.disputeHash}</li>
+            <li>Buyer award: {formatUsdc(BigInt(backendMilestone?.buyer_award ?? milestone.buyerAward))}</li>
+            <li>Seller award: {formatUsdc(BigInt(backendMilestone?.seller_award ?? milestone.sellerAward))}</li>
+          </ul>
+        </article>
+
+        <article className="panel stack-md" data-testid="milestone-deal-context-panel">
+          <h2>Deal context</h2>
+          <ul className="plain-list stack-sm">
+            <li>Buyer: {backendOverview?.buyer_address ?? overview.buyer}</li>
+            <li>Seller: {backendOverview?.seller_address ?? overview.seller}</li>
+            <li>Arbiter: {backendOverview?.arbiter_address ?? overview.arbiter}</li>
+            <li>Token: {backendOverview?.token_address ?? overview.token}</li>
+            <li>Escrow: {backendOverview?.address ?? overview.address}</li>
+          </ul>
+        </article>
+      </section>
+
+      <article className="panel stack-md" data-testid="milestone-metadata-panel">
         <div className="eyebrow">Metadata verification</div>
         <h2>Milestone terms</h2>
         <p className="status-text">Verification status: {metadataAssessment.state}</p>
@@ -279,8 +279,8 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
         </ul>
       </article>
 
-      <section className="grid-two">
-        <article className="panel stack-md">
+      <section className="grid-two" data-testid="milestone-hash-context-grid">
+        <article className="panel stack-md" data-testid="milestone-evidence-context-panel">
           <h2>Evidence hash context</h2>
           <p className="status-text">State: {evidenceAssessment.state}</p>
           <p>{evidenceAssessment.message}</p>
@@ -290,7 +290,7 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
           ) : null}
         </article>
 
-        <article className="panel stack-md">
+        <article className="panel stack-md" data-testid="milestone-dispute-context-panel">
           <h2>Dispute hash context</h2>
           <p className="status-text">State: {disputeAssessment.state}</p>
           <p>{disputeAssessment.message}</p>

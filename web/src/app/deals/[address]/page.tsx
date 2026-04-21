@@ -226,56 +226,6 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
         </article>
       ) : null}
 
-      <section className="grid-two">
-        <article className="panel stack-md">
-          <h2>Live deal state</h2>
-          <p className="status-text" data-testid="deal-live-contract-truth">
-            {trustExplanation.liveContractSummary}
-          </p>
-          <ul className="plain-list stack-sm">
-            <li>Buyer: {backendOverview?.buyer_address ?? overview.buyer}</li>
-            <li>Seller: {backendOverview?.seller_address ?? overview.seller}</li>
-            <li>Arbiter: {backendOverview?.arbiter_address ?? overview.arbiter}</li>
-            <li>Token: {backendOverview?.token_address ?? overview.token}</li>
-            <li>Deal status: {getDealStatusLabel(backendOverview?.deal_status ?? overview.dealStatus)}</li>
-            <li>
-              Current milestone index: {String(backendOverview?.current_milestone_index ?? overview.currentMilestoneIndex)}
-            </li>
-            <li>
-              Active dispute milestone id: {String(backendOverview?.active_dispute_milestone_id ?? overview.activeDisputeMilestoneId)}
-            </li>
-            <li>Total funded: {formatUsdc(BigInt(backendOverview?.total_funded ?? overview.totalFunded))}</li>
-            <li>
-              Released to seller: {formatUsdc(BigInt(backendOverview?.total_released_to_seller ?? overview.totalReleasedToSeller))}
-            </li>
-            <li>
-              Refunded to buyer: {formatUsdc(BigInt(backendOverview?.total_refunded_to_buyer ?? overview.totalRefundedToBuyer))}
-            </li>
-            <li>
-              Fees collected: {formatUsdc(BigInt(backendOverview?.total_fees_collected ?? overview.totalFeesCollected))}
-            </li>
-          </ul>
-        </article>
-
-        <article className="panel stack-md">
-          <h2>Milestone list (backend indexed)</h2>
-          <p className="status-text" data-testid="deal-indexed-truth">
-            {trustExplanation.indexedDataSummary}
-          </p>
-          {backendMilestones.length > 0 ? (
-            <ul className="plain-list stack-sm">
-              {backendMilestones.map((milestone) => (
-                <li key={milestone.milestone_id}>
-                  #{milestone.milestone_id}: {milestone.metadata_title ?? "Untitled milestone"} ({getMilestoneStatusLabel(milestone.status)})
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p>No milestone list is available from the backend yet.</p>
-          )}
-        </article>
-      </section>
-
       <WorkflowSurfacePanel data-testid="deal-workflow-guidance">
         <WorkflowSectionHeader
           eyebrow="Workflow guidance"
@@ -314,7 +264,57 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
         ) : null}
       </WorkflowSurfacePanel>
 
-      <article className="panel stack-md">
+      <section className="grid-two" data-testid="deal-truth-grid">
+        <article className="panel stack-md" data-testid="deal-live-state-panel">
+          <h2>Live deal state</h2>
+          <p className="status-text" data-testid="deal-live-contract-truth">
+            {trustExplanation.liveContractSummary}
+          </p>
+          <ul className="plain-list stack-sm">
+            <li>Buyer: {backendOverview?.buyer_address ?? overview.buyer}</li>
+            <li>Seller: {backendOverview?.seller_address ?? overview.seller}</li>
+            <li>Arbiter: {backendOverview?.arbiter_address ?? overview.arbiter}</li>
+            <li>Token: {backendOverview?.token_address ?? overview.token}</li>
+            <li>Deal status: {getDealStatusLabel(backendOverview?.deal_status ?? overview.dealStatus)}</li>
+            <li>
+              Current milestone index: {String(backendOverview?.current_milestone_index ?? overview.currentMilestoneIndex)}
+            </li>
+            <li>
+              Active dispute milestone id: {String(backendOverview?.active_dispute_milestone_id ?? overview.activeDisputeMilestoneId)}
+            </li>
+            <li>Total funded: {formatUsdc(BigInt(backendOverview?.total_funded ?? overview.totalFunded))}</li>
+            <li>
+              Released to seller: {formatUsdc(BigInt(backendOverview?.total_released_to_seller ?? overview.totalReleasedToSeller))}
+            </li>
+            <li>
+              Refunded to buyer: {formatUsdc(BigInt(backendOverview?.total_refunded_to_buyer ?? overview.totalRefundedToBuyer))}
+            </li>
+            <li>
+              Fees collected: {formatUsdc(BigInt(backendOverview?.total_fees_collected ?? overview.totalFeesCollected))}
+            </li>
+          </ul>
+        </article>
+
+        <article className="panel stack-md" data-testid="deal-indexed-state-panel">
+          <h2>Milestone list (backend indexed)</h2>
+          <p className="status-text" data-testid="deal-indexed-truth">
+            {trustExplanation.indexedDataSummary}
+          </p>
+          {backendMilestones.length > 0 ? (
+            <ul className="plain-list stack-sm">
+              {backendMilestones.map((milestone) => (
+                <li key={milestone.milestone_id}>
+                  #{milestone.milestone_id}: {milestone.metadata_title ?? "Untitled milestone"} ({getMilestoneStatusLabel(milestone.status)})
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p>No milestone list is available from the backend yet.</p>
+          )}
+        </article>
+      </section>
+
+      <article className="panel stack-md" data-testid="deal-metadata-truth-panel">
         <div className="eyebrow">Metadata verification</div>
         <h2>Offchain terms</h2>
         <p className="status-text">Verification status: {metadataTruthAssessment.state}</p>
@@ -329,7 +329,7 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
         </ul>
       </article>
 
-      <article className="panel stack-md">
+      <article className="panel stack-md" data-testid="deal-timeline-panel">
         <div className="eyebrow">Timeline</div>
         <h2>Indexed event history (backend derived)</h2>
         <p className="status-text" data-testid="deal-timeline-truth">
