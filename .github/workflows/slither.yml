@@ -1,0 +1,26 @@
+name: Slither
+
+on:
+  push:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/slither.yml"
+  pull_request:
+    paths:
+      - "contracts/**"
+      - ".github/workflows/slither.yml"
+
+jobs:
+  slither:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Slither
+        uses: crytic/slither-action@v0.4.1
+        with:
+          target: contracts
+          slither-args: --filter-paths "contracts/lib|contracts/test" --exclude naming-convention
+          fail-on: medium
