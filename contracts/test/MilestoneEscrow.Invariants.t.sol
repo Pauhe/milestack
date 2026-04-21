@@ -5,7 +5,7 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Test } from "forge-std/Test.sol";
 
 import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
-import { DealConfig, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
+import { DealConfig, DealStatus, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract MilestoneEscrowHandler is Test {
@@ -44,35 +44,30 @@ contract MilestoneEscrowHandler is Test {
         _syncMaxIndex();
     }
 
-    function fundCurrent() external {
-        uint256 index = escrow.currentMilestoneIndex();
-
+    function fundArbitrary(uint256 rawMilestoneId) external {
         vm.prank(BUYER);
-        try escrow.fundMilestone(index) { } catch { }
+        try escrow.fundMilestone(_deriveMilestoneId(rawMilestoneId)) { } catch { }
 
         _syncMaxIndex();
     }
 
-    function submitCurrent(bytes32 evidenceHash) external {
-        uint256 index = escrow.currentMilestoneIndex();
+    function submitArbitrary(uint256 rawMilestoneId, bytes32 evidenceHash) external {
         bytes32 nonZeroEvidence = evidenceHash == bytes32(0) ? bytes32(uint256(1)) : evidenceHash;
 
         vm.prank(SELLER);
-        try escrow.submitMilestone(index, nonZeroEvidence) { } catch { }
+        try escrow.submitMilestone(_deriveMilestoneId(rawMilestoneId), nonZeroEvidence) { } catch { }
 
         _syncMaxIndex();
     }
 
-    function approveCurrent() external {
-        uint256 index = escrow.currentMilestoneIndex();
-
+    function approveArbitrary(uint256 rawMilestoneId) external {
         vm.prank(BUYER);
-        try escrow.approveMilestone(index) { } catch { }
+        try escrow.approveMilestone(_deriveMilestoneId(rawMilestoneId)) { } catch { }
 
         _syncMaxIndex();
     }
 
-    function warpAfterDeadline() external {
+    function warpAfterCurrentDeadline() external {
         uint256 index = escrow.currentMilestoneIndex();
 
         if (index >= escrow.milestoneCount()) {
@@ -88,21 +83,18 @@ contract MilestoneEscrowHandler is Test {
         }
     }
 
-    function claimCurrent() external {
-        uint256 index = escrow.currentMilestoneIndex();
-
+    function claimArbitrary(uint256 rawMilestoneId) external {
         vm.prank(SELLER);
-        try escrow.claimAfterReviewWindow(index) { } catch { }
+        try escrow.claimAfterReviewWindow(_deriveMilestoneId(rawMilestoneId)) { } catch { }
 
         _syncMaxIndex();
     }
 
-    function openDispute(bytes32 disputeHash) external {
-        uint256 index = escrow.currentMilestoneIndex();
+    function openDisputeArbitrary(uint256 rawMilestoneId, bytes32 disputeHash) external {
         bytes32 nonZeroDispute = disputeHash == bytes32(0) ? bytes32(uint256(2)) : disputeHash;
 
         vm.prank(BUYER);
-        try escrow.openDispute(index, nonZeroDispute) { } catch { }
+        try escrow.openDispute(_deriveMilestoneId(rawMilestoneId), nonZeroDispute) { } catch { }
 
         _syncMaxIndex();
     }
@@ -128,6 +120,13 @@ contract MilestoneEscrowHandler is Test {
         _syncMaxIndex();
     }
 
+    function _deriveMilestoneId(uint256 rawMilestoneId) internal view returns (uint256) {
+        uint256 milestoneCount = escrow.milestoneCount();
+        if (milestoneCount == 0) return 0;
+
+        return rawMilestoneId % (milestoneCount + 1);
+    }
+
     function _syncMaxIndex() internal {
         uint256 currentIndex = escrow.currentMilestoneIndex();
         if (currentIndex > maxObservedIndex) {
@@ -144,33 +143,117 @@ contract MilestoneEscrowInvariantTest is StdInvariant, Test {
         targetContract(address(handler));
     }
 
-    function invariantFundConservation() public view {
+    function invariantEscrowBalanceConservesFundsAcrossAllOutcomes() public view {
         MilestoneEscrow escrow = handler.escrow();
         MockERC20 token = handler.token();
 
-        uint256 distributedAndHeld = token.balanceOf(address(escrow))
-            + escrow.totalReleasedToSeller() + escrow.totalRefundedToBuyer()
-            + escrow.totalFeesCollected();
+        uint256 distributedAndHeld = token.balanceOf(address(escrow)) + escrow.totalReleasedToSeller()
+            + escrow.totalRefundedToBuyer() + escrow.totalFeesCollected();
 
         assertEq(distributedAndHeld, escrow.totalFunded());
     }
 
-    function invariantActiveDisputeMatchesMilestoneState() public view {
+    function invariantAtMostOneActiveDisputeAndPointerMatchesIt() public view {
         MilestoneEscrow escrow = handler.escrow();
         uint256 disputeIndex = escrow.activeDisputeMilestoneId();
+        uint256 disputeCount;
 
-        if (disputeIndex == type(uint256).max) {
+        for (uint256 i = 0; i < escrow.milestoneCount(); i++) {
+            Milestone memory milestone = escrow.getMilestone(i);
+            if (milestone.status == MilestoneStatus.Disputed) {
+                disputeCount++;
+                assertEq(i, disputeIndex, "active dispute pointer must match disputed milestone index");
+            }
+        }
+
+        assertLe(disputeCount, 1, "multiple disputed milestones cannot coexist");
+
+        if (disputeCount == 0) {
+            assertEq(
+                disputeIndex,
+                type(uint256).max,
+                "active dispute pointer must clear when no milestone is disputed"
+            );
             return;
         }
 
-        Milestone memory milestone = escrow.getMilestone(disputeIndex);
-
-        assertEq(uint256(milestone.status), uint256(MilestoneStatus.Disputed));
-        assertEq(disputeIndex, escrow.currentMilestoneIndex());
+        assertEq(disputeCount, 1, "active dispute pointer implies exactly one disputed milestone");
+        assertEq(
+            disputeIndex,
+            escrow.currentMilestoneIndex(),
+            "disputed milestone must stay at the current index"
+        );
     }
 
-    function invariantCurrentMilestoneIndexNeverMovesBackward() public view {
-        assertLe(handler.escrow().currentMilestoneIndex(), handler.escrow().milestoneCount() - 1);
-        assertEq(handler.escrow().currentMilestoneIndex(), handler.maxObservedIndex());
+    function invariantPriorMilestonesNeverRegressFromTerminalStatuses() public view {
+        MilestoneEscrow escrow = handler.escrow();
+        uint256 currentIndex = escrow.currentMilestoneIndex();
+        uint256 milestoneCount = escrow.milestoneCount();
+
+        assertLe(currentIndex, milestoneCount - 1, "current index must stay within milestone bounds");
+        assertEq(currentIndex, handler.maxObservedIndex(), "current index must never move backward");
+
+        for (uint256 i = 0; i < currentIndex; i++) {
+            MilestoneStatus status = escrow.getMilestone(i).status;
+            assertTrue(
+                status == MilestoneStatus.PaidOut || status == MilestoneStatus.Refunded,
+                "milestones before current index must remain terminal paid/refunded"
+            );
+        }
+    }
+
+    function invariantCompletedDealHasCleanTerminalState() public view {
+        MilestoneEscrow escrow = handler.escrow();
+        if (escrow.dealStatus() != DealStatus.Completed) return;
+
+        uint256 milestoneCount = escrow.milestoneCount();
+        uint256 lastMilestoneIndex = milestoneCount - 1;
+
+        assertEq(
+            escrow.currentMilestoneIndex(),
+            lastMilestoneIndex,
+            "completed deal must point at final milestone index"
+        );
+        assertEq(
+            escrow.activeDisputeMilestoneId(),
+            type(uint256).max,
+            "completed deal cannot retain an active dispute"
+        );
+
+        for (uint256 i = 0; i < milestoneCount; i++) {
+            MilestoneStatus status = escrow.getMilestone(i).status;
+            assertTrue(
+                status == MilestoneStatus.PaidOut || status == MilestoneStatus.Refunded,
+                "completed deal milestones must be terminal paid/refunded"
+            );
+        }
+
+        assertEq(
+            handler.token().balanceOf(address(escrow)),
+            0,
+            "completed deal must not retain escrow token balance"
+        );
+    }
+
+    function invariantCancelledDealHasOnlyTerminalOrUnsettleableMilestones() public view {
+        MilestoneEscrow escrow = handler.escrow();
+        if (escrow.dealStatus() != DealStatus.Cancelled) return;
+
+        uint256 milestoneCount = escrow.milestoneCount();
+
+        assertEq(
+            escrow.activeDisputeMilestoneId(),
+            type(uint256).max,
+            "cancelled deal cannot retain an active dispute"
+        );
+
+        for (uint256 i = 0; i < milestoneCount; i++) {
+            MilestoneStatus status = escrow.getMilestone(i).status;
+            assertTrue(
+                status == MilestoneStatus.PaidOut || status == MilestoneStatus.Refunded
+                    || status == MilestoneStatus.Cancelled,
+                "cancelled deals may only contain settled or cancelled milestones"
+            );
+        }
     }
 }
