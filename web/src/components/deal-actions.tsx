@@ -17,7 +17,8 @@ import type { EscrowOverview } from "@/lib/contracts/milestone-escrow";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { getDealStatusLabel } from "@/lib/status";
-import { WorkflowActionGroup, WorkflowSectionHeader, WorkflowSurfacePanel } from "@/components/workflow-surface";
+import { ActionPanelWalletPanel, ActionPanelWorkflowPanel } from "@/components/action-panel-presenter";
+import { WorkflowActionGroup } from "@/components/workflow-surface";
 
 type DealActionsProps = {
   overview: EscrowOverview;
@@ -131,57 +132,35 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
 
   return (
     <section className="stack-lg">
-      <WorkflowSurfacePanel>
-        <WorkflowSectionHeader
-          eyebrow="Connected role"
-          title={role === "visitor" ? "Read-only visitor" : role}
-          description={`Deal status: ${getDealStatusLabel(overview.dealStatus)}. Current milestone status: ${semantics ? semantics.statusLabel : "Not available"}.`}
-        />
+      <ActionPanelWalletPanel
+        roleTitle={role === "visitor" ? "Read-only visitor" : role}
+        description={`Deal status: ${getDealStatusLabel(overview.dealStatus)}. Current milestone status: ${semantics ? semantics.statusLabel : "Not available"}.`}
+        isConnected={isConnected}
+        walletAddress={address}
+        chainLabel={chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}
+        connectors={connectors.map((connector) => ({
+          uid: connector.uid,
+          name: connector.name,
+          onConnect: () => connect({ connector }),
+        }))}
+        isConnectPending={isConnectPending}
+        onDisconnect={() => disconnect()}
+        wrongChainMessage={guidance.wrongChainMessage}
+        txHash={hash ?? null}
+        txHashLabel="Last submitted tx"
+        errorMessage={error?.message ?? null}
+        errorTitle="Write error"
+      />
 
-        {!isConnected ? (
-          <div className="stack-sm">
-            <p>Connect a wallet to unlock role-specific milestone actions.</p>
-            <div className="action-row">
-              {connectors.map((connector) => (
-                <button
-                  key={connector.uid}
-                  className="button button--primary"
-                  disabled={isConnectPending}
-                  onClick={() => connect({ connector })}
-                  type="button"
-                >
-                  Connect {connector.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="stack-sm">
-            <p>Wallet: {address}</p>
-            <p>Chain: {chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}</p>
-            <div className="action-row">
-              <button className="button button--ghost" onClick={() => disconnect()} type="button">
-                Disconnect
-              </button>
-            </div>
-          </div>
-        )}
-
-        {guidance.wrongChainMessage ? (
-          <p className="status-text">{guidance.wrongChainMessage}</p>
-        ) : null}
-
-        {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
-        {error ? <p className="status-text">Write error: {error.message}</p> : null}
-      </WorkflowSurfacePanel>
-
-      <WorkflowSurfacePanel>
-        <WorkflowSectionHeader eyebrow="Current milestone actions" title="Available actions" />
-
-        <p className="status-text">
-          {guidance.nextStepLabel}: {guidance.nextStepMessage}
-        </p>
-
+      <ActionPanelWorkflowPanel
+        eyebrow="Current milestone actions"
+        title="Available actions"
+        nextStepLabel={guidance.nextStepLabel}
+        nextStepMessage={guidance.nextStepMessage}
+        pendingMessage={isBusy ? "Transaction submitted. Waiting for confirmation before enabling new writes." : null}
+        blockedReason={overview.currentMilestone ? guidance.blockedReason : guidance.blockedReason ?? "No current milestone data is available for this escrow."}
+        trustHint={guidance.claimAfterTimeoutHint}
+      >
         {overview.currentMilestone ? (
           <WorkflowActionGroup>
             {semantics?.canFund ? (
@@ -256,10 +235,6 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
               </div>
             ) : null}
 
-            {guidance.claimAfterTimeoutHint ? (
-              <p className="status-text">{guidance.claimAfterTimeoutHint}</p>
-            ) : null}
-
             {semantics?.canClaimAfterTimeout ? (
               <button
                 className="button button--primary"
@@ -276,15 +251,9 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
                 {guidance.disputeRoute.label}
               </a>
             ) : null}
-
-            {guidance.blockedReason ? (
-              <p className="status-text">{guidance.blockedReason}</p>
-            ) : null}
           </WorkflowActionGroup>
-        ) : (
-          <p className="status-text">{guidance.blockedReason ?? "No current milestone data is available for this escrow."}</p>
-        )}
-      </WorkflowSurfacePanel>
+        ) : null}
+      </ActionPanelWorkflowPanel>
     </section>
   );
 }

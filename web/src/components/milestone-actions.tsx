@@ -17,6 +17,8 @@ import type { EscrowMilestone, EscrowOverview } from "@/lib/contracts/milestone-
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { getDealStatusLabel } from "@/lib/status";
+import { ActionPanelWalletPanel, ActionPanelWorkflowPanel } from "@/components/action-panel-presenter";
+import { WorkflowActionGroup } from "@/components/workflow-surface";
 
 type MilestoneActionsProps = {
   overview: EscrowOverview;
@@ -125,57 +127,36 @@ export function MilestoneActions({
 
   return (
     <section className="stack-lg">
-      <article className="panel stack-md">
-        <div className="eyebrow">Connected role</div>
-        <h2>{role === "visitor" ? "Read-only visitor" : role}</h2>
-        <p>
-          Deal status: {getDealStatusLabel(overview.dealStatus)}. Milestone status: {" "}
-          {semantics.statusLabel}.
-        </p>
+      <ActionPanelWalletPanel
+        roleTitle={role === "visitor" ? "Read-only visitor" : role}
+        description={`Deal status: ${getDealStatusLabel(overview.dealStatus)}. Milestone status: ${semantics.statusLabel}.`}
+        isConnected={isConnected}
+        walletAddress={address}
+        chainLabel={chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}
+        connectors={connectors.map((connector) => ({
+          uid: connector.uid,
+          name: connector.name,
+          onConnect: () => connect({ connector }),
+        }))}
+        isConnectPending={isConnectPending}
+        onDisconnect={() => disconnect()}
+        wrongChainMessage={guidance.wrongChainMessage}
+        txHash={hash ?? null}
+        txHashLabel="Last submitted tx"
+        errorMessage={error?.message ?? null}
+        errorTitle="Write error"
+      />
 
-        {!isConnected ? (
-          <div className="stack-sm">
-            <p>Connect a wallet to unlock role-specific milestone actions.</p>
-            <div className="action-row">
-              {connectors.map((connector) => (
-                <button
-                  key={connector.uid}
-                  className="button button--primary"
-                  disabled={isConnectPending}
-                  onClick={() => connect({ connector })}
-                  type="button"
-                >
-                  Connect {connector.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="stack-sm">
-            <p>Wallet: {address}</p>
-            <p>Chain: {chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}</p>
-            <button className="button button--ghost" onClick={() => disconnect()} type="button">
-              Disconnect
-            </button>
-          </div>
-        )}
-
-        {guidance.wrongChainMessage ? (
-          <p className="status-text">{guidance.wrongChainMessage}</p>
-        ) : null}
-        {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
-        {error ? <p className="status-text">Write error: {error.message}</p> : null}
-      </article>
-
-      <article className="panel stack-md">
-        <div className="eyebrow">Milestone actions</div>
-        <h2>Allowed next step</h2>
-
-        <p className="status-text">
-          {guidance.nextStepLabel}: {guidance.nextStepMessage}
-        </p>
-
-        <div className="stack-md">
+      <ActionPanelWorkflowPanel
+        eyebrow="Milestone actions"
+        title="Allowed next step"
+        nextStepLabel={guidance.nextStepLabel}
+        nextStepMessage={guidance.nextStepMessage}
+        pendingMessage={isBusy ? "Transaction submitted. Waiting for confirmation before enabling new writes." : null}
+        blockedReason={guidance.blockedReason}
+        trustHint={guidance.claimAfterTimeoutHint}
+      >
+        <WorkflowActionGroup>
           {semantics.canFund ? (
             <button
               className="button button--primary"
@@ -246,10 +227,6 @@ export function MilestoneActions({
             </div>
           ) : null}
 
-          {guidance.claimAfterTimeoutHint ? (
-            <p className="status-text">{guidance.claimAfterTimeoutHint}</p>
-          ) : null}
-
           {semantics.canClaimAfterTimeout ? (
             <button
               className="button button--primary"
@@ -266,12 +243,8 @@ export function MilestoneActions({
               {guidance.disputeRoute.label}
             </a>
           ) : null}
-
-          {guidance.blockedReason ? (
-            <p className="status-text">{guidance.blockedReason}</p>
-          ) : null}
-        </div>
-      </article>
+        </WorkflowActionGroup>
+      </ActionPanelWorkflowPanel>
     </section>
   );
 }

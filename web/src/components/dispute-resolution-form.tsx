@@ -15,6 +15,8 @@ import { configuredChain } from "@/lib/chains";
 import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 import type { EscrowMilestone, EscrowOverview } from "@/lib/contracts/milestone-escrow";
 import { deriveDisputeResolutionGuidance } from "@/lib/workflow-guidance";
+import { ActionPanelWalletPanel, ActionPanelWorkflowPanel } from "@/components/action-panel-presenter";
+import { WorkflowStatusRow } from "@/components/workflow-surface";
 
 type DisputeResolutionFormProps = {
   overview: EscrowOverview;
@@ -108,51 +110,34 @@ export function DisputeResolutionForm({ overview, milestoneId, milestone }: Disp
 
   return (
     <section className="stack-lg">
-      <article className="panel stack-md">
-        <div className="eyebrow">Connected role</div>
-        <h2>{role === "visitor" ? "Read-only visitor" : role}</h2>
-        <p>Only the designated arbiter can resolve this disputed milestone.</p>
+      <ActionPanelWalletPanel
+        roleTitle={role === "visitor" ? "Read-only visitor" : role}
+        description="Only the designated arbiter can resolve this disputed milestone."
+        isConnected={isConnected}
+        walletAddress={address}
+        chainLabel={chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}
+        connectors={connectors.map((connector) => ({
+          uid: connector.uid,
+          name: connector.name,
+          onConnect: () => connect({ connector }),
+        }))}
+        isConnectPending={isConnectPending}
+        onDisconnect={() => disconnect()}
+        wrongChainMessage={guidance.wrongChainMessage}
+        txHash={hash ?? null}
+        txHashLabel="Last submitted tx"
+        errorMessage={error?.message ?? null}
+        errorTitle="Resolution error"
+      />
 
-        {!isConnected ? (
-          <div className="stack-sm">
-            <p>Connect a wallet to continue.</p>
-            <div className="action-row">
-              {connectors.map((connector) => (
-                <button
-                  key={connector.uid}
-                  className="button button--primary"
-                  disabled={isConnectPending}
-                  onClick={() => connect({ connector })}
-                  type="button"
-                >
-                  Connect {connector.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="stack-sm">
-            <p>Wallet: {address}</p>
-            <p>Chain: {chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}</p>
-            <button className="button button--ghost" onClick={() => disconnect()} type="button">
-              Disconnect
-            </button>
-          </div>
-        )}
-
-        {guidance.wrongChainMessage ? <p className="status-text">{guidance.wrongChainMessage}</p> : null}
-        {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
-        {error ? <p className="status-text">Resolution error: {error.message}</p> : null}
-      </article>
-
-      <article className="panel stack-md">
-        <div className="eyebrow">Arbiter resolution</div>
-        <h2>Resolve disputed milestone</h2>
-        <p>
-          Milestone amount: {milestoneAmountText} USDC. Dispute decisions are human, not
-          algorithmic, and the resolution is final for this milestone.
-        </p>
-
+      <ActionPanelWorkflowPanel
+        eyebrow="Arbiter resolution"
+        title="Resolve disputed milestone"
+        nextStepLabel="Resolution context"
+        nextStepMessage={`Milestone amount: ${milestoneAmountText} USDC. Dispute decisions are human, not algorithmic, and resolution is final for this milestone.`}
+        pendingMessage={isBusy ? "Resolution transaction submitted. Wait for confirmation before sending another split." : null}
+        blockedReason={guidance.blockedReason}
+      >
         <div className="stack-sm">
           <label className="field stack-sm">
             <span>Buyer award (USDC)</span>
@@ -178,14 +163,20 @@ export function DisputeResolutionForm({ overview, milestoneId, milestone }: Disp
         </div>
 
         <div className="stack-sm">
-          <p className="status-text">
-            Current split total: {formatUnits(totalAward, 6)} / {milestoneAmountText} USDC
+          <WorkflowStatusRow
+            label="Current split total"
+            value={`${formatUnits(totalAward, 6)} / ${milestoneAmountText} USDC`}
+            testId="dispute-split-total"
+          />
+          <WorkflowStatusRow
+            label="Split validation"
+            value={guidance.splitMessage}
+            testId="dispute-split-validation"
+          />
+          <p className="status-text action-panel-dispute-finality">
+            Resolution is final once submitted on-chain.
           </p>
-
-          <p className="status-text">{guidance.splitMessage}</p>
         </div>
-
-        {guidance.blockedReason ? <p className="status-text">{guidance.blockedReason}</p> : null}
 
         <button
           className="button button--primary"
@@ -195,7 +186,7 @@ export function DisputeResolutionForm({ overview, milestoneId, milestone }: Disp
         >
           Submit resolution
         </button>
-      </article>
+      </ActionPanelWorkflowPanel>
     </section>
   );
 }

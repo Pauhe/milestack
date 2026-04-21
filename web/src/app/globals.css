@@ -287,6 +287,15 @@ a {
   padding-top: 0.9rem;
 }
 
+.action-panel-workflow-body {
+  gap: 1rem;
+}
+
+.action-panel-dispute-finality {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
 @media (max-width: 800px) {
   .site-header {
     align-items: flex-start;
