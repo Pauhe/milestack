@@ -27,6 +27,11 @@ import {
   type MilestoneActionSemantics,
   type MilestoneRole,
 } from "@/lib/milestone-semantics";
+import {
+  getActionAuthorityExplanationCopy,
+  getDealOverviewTrustExplanationCopy,
+  getTimelineTruthExplanationCopy,
+} from "@/lib/workflow-explanations";
 import { deriveActionPanelGuidance, type ActionPanelGuidance } from "@/lib/workflow-guidance";
 
 type DealOverviewPageProps = {
@@ -39,6 +44,7 @@ type RouteWorkflowContext = {
   role: MilestoneRole;
   semantics: MilestoneActionSemantics | null;
   guidance: ActionPanelGuidance;
+  authorityExplanation: string;
   milestoneHref: string;
   disputeHref: string | null;
 };
@@ -87,6 +93,10 @@ function deriveRouteWorkflowContext(
     role: "visitor",
     semantics,
     guidance: guidanceWithFreshness,
+    authorityExplanation: getActionAuthorityExplanationCopy({
+      guidance: guidanceWithFreshness,
+      semantics,
+    }),
     milestoneHref,
     disputeHref,
   };
@@ -186,15 +196,18 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
     freshnessAssessment
   );
 
+  const trustExplanation = getDealOverviewTrustExplanationCopy({
+    freshnessAssessment,
+    hasIndexedMilestones: backendMilestones.length > 0,
+    hasIndexedTimeline: backendTimeline.length > 0,
+  });
+
   return (
     <section className="stack-lg">
       <div className="page-header stack-sm">
         <div className="eyebrow">Deal Overview</div>
         <h1>{overview.address}</h1>
-        <p>
-          Primary escrow fields are read live from the contract on {configuredChain.name}. Timeline
-          and milestone summaries are backend-derived indexed views.
-        </p>
+        <p>{trustExplanation.liveContractSummary}</p>
       </div>
 
       {freshnessBanner ? (
@@ -210,6 +223,9 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
       <section className="grid-two">
         <article className="panel stack-md">
           <h2>Live deal state</h2>
+          <p className="status-text" data-testid="deal-live-contract-truth">
+            {trustExplanation.liveContractSummary}
+          </p>
           <ul className="plain-list stack-sm">
             <li>Buyer: {backendOverview?.buyer_address ?? overview.buyer}</li>
             <li>Seller: {backendOverview?.seller_address ?? overview.seller}</li>
@@ -237,6 +253,9 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
 
         <article className="panel stack-md">
           <h2>Milestone list (backend indexed)</h2>
+          <p className="status-text" data-testid="deal-indexed-truth">
+            {trustExplanation.indexedDataSummary}
+          </p>
           {backendMilestones.length > 0 ? (
             <ul className="plain-list stack-sm">
               {backendMilestones.map((milestone) => (
@@ -272,6 +291,9 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
         {workflowContext.guidance.claimAfterTimeoutHint ? (
           <p className="status-text">Timeout hint: {workflowContext.guidance.claimAfterTimeoutHint}</p>
         ) : null}
+        <p className="status-text" data-testid="deal-action-authority-truth">
+          Action authority: {workflowContext.authorityExplanation}
+        </p>
         {workflowContext.guidance.blockedReason ? (
           <p className="status-text">Blocked: {workflowContext.guidance.blockedReason}</p>
         ) : null}
@@ -295,16 +317,26 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
       <article className="panel stack-md">
         <div className="eyebrow">Timeline</div>
         <h2>Indexed event history (backend derived)</h2>
+        <p className="status-text" data-testid="deal-timeline-truth">
+          {trustExplanation.timelineSummary}
+        </p>
 
         {backendTimeline.length > 0 ? (
           <ul className="plain-list stack-sm">
-            {backendTimeline.map((entry, index) => (
-              <li key={`${entry.type}-${index}`}>
-                {entry.summary}
-                {entry.actor ? ` (${entry.actor.role}: ${entry.actor.address})` : ""}
-                {getTimelineTruthNote(entry.truth) ? ` — ${getTimelineTruthNote(entry.truth)}` : ""}
-              </li>
-            ))}
+            {backendTimeline.map((entry, index) => {
+              const timelineTruthCopy = getTimelineTruthExplanationCopy({
+                truthNote: getTimelineTruthNote(entry.truth),
+                eventType: entry.type,
+              });
+
+              return (
+                <li key={`${entry.type}-${index}`}>
+                  {entry.summary}
+                  {entry.actor ? ` (${entry.actor.role}: ${entry.actor.address})` : ""}
+                  {` — ${timelineTruthCopy}`}
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <p>No indexed timeline entries are available yet.</p>

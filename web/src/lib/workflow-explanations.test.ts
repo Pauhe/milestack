@@ -5,6 +5,7 @@ import { deriveMilestoneActionSemantics } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import {
   getActionAuthorityExplanationCopy,
+  getDealOverviewTrustExplanationCopy,
   getFreshnessExplanationCopy,
   getReviewDeadlineExplanationCopy,
   getTimelineTruthExplanationCopy,
@@ -167,6 +168,57 @@ describe("getTimelineTruthExplanationCopy", () => {
     });
 
     expect(copy).toBe("Truth note: claim-attribution-ambiguous.");
+  });
+});
+
+describe("getDealOverviewTrustExplanationCopy", () => {
+  it("always keeps live contract reads canonical", () => {
+    const copy = getDealOverviewTrustExplanationCopy({
+      freshnessAssessment: makeFreshnessAssessment(),
+      hasIndexedMilestones: true,
+      hasIndexedTimeline: true,
+    });
+
+    expect(copy.liveContractSummary).toContain("read live");
+    expect(copy.liveContractSummary).toContain("canonical");
+  });
+
+  it("keeps indexed summary conservative when freshness is stale", () => {
+    const copy = getDealOverviewTrustExplanationCopy({
+      freshnessAssessment: makeFreshnessAssessment({
+        state: "stale",
+        degraded: true,
+        lagBlocks: "9",
+      }),
+      hasIndexedMilestones: true,
+      hasIndexedTimeline: true,
+    });
+
+    expect(copy.indexedDataSummary).toContain("stale");
+    expect(copy.indexedDataSummary).toContain("lag: 9 blocks");
+    expect(copy.indexedDataSummary).toContain("conservative");
+  });
+
+  it("returns explicit timeline fallback when indexed timeline is missing", () => {
+    const copy = getDealOverviewTrustExplanationCopy({
+      freshnessAssessment: makeFreshnessAssessment({ state: "unavailable", degraded: true }),
+      hasIndexedMilestones: false,
+      hasIndexedTimeline: false,
+    });
+
+    expect(copy.timelineSummary).toContain("No indexed timeline entries");
+    expect(copy.timelineSummary).toContain("unavailable");
+  });
+
+  it("keeps timeline framing conservative when milestone context is missing", () => {
+    const copy = getDealOverviewTrustExplanationCopy({
+      freshnessAssessment: makeFreshnessAssessment(),
+      hasIndexedMilestones: false,
+      hasIndexedTimeline: true,
+    });
+
+    expect(copy.timelineSummary).toContain("milestone list context is missing");
+    expect(copy.timelineSummary).toContain("conservative");
   });
 });
 

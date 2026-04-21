@@ -154,6 +154,52 @@ export function getTimelineTruthExplanationCopy(input: TimelineTruthExplanationI
   return "Timeline truth note unavailable from backend. Treat event attribution as conservative until truth context is present.";
 }
 
+export type DealOverviewTrustExplanationInput = {
+  freshnessAssessment: BackendFreshnessAssessment | null | undefined;
+  hasIndexedMilestones: boolean;
+  hasIndexedTimeline: boolean;
+};
+
+export type DealOverviewTrustExplanation = {
+  liveContractSummary: string;
+  indexedDataSummary: string;
+  timelineSummary: string;
+};
+
+export function getDealOverviewTrustExplanationCopy(
+  input: DealOverviewTrustExplanationInput
+): DealOverviewTrustExplanation {
+  const liveContractSummary =
+    "Deal parties, balances, and current status are read live from the escrow contract and remain canonical for settlement state.";
+
+  const indexedDataSummary = getFreshnessExplanationCopy(input.freshnessAssessment, "deal");
+
+  if (!input.hasIndexedTimeline) {
+    return {
+      liveContractSummary,
+      indexedDataSummary,
+      timelineSummary:
+        "No indexed timeline entries are available yet. Timeline-based attribution remains unavailable until backend truth notes are present.",
+    };
+  }
+
+  if (!input.hasIndexedMilestones) {
+    return {
+      liveContractSummary,
+      indexedDataSummary,
+      timelineSummary:
+        "Indexed timeline entries are present, but milestone list context is missing. Keep route-level action and payout attribution wording conservative.",
+    };
+  }
+
+  return {
+    liveContractSummary,
+    indexedDataSummary,
+    timelineSummary:
+      "Timeline summaries are backend-derived context. Keep payout-trigger attribution conservative unless backend truth notes explicitly disambiguate events.",
+  };
+}
+
 export type ActionAuthorityExplanationInput = {
   guidance: Pick<ActionPanelGuidance, "blockedReason" | "claimAfterTimeoutHint"> | null;
   semantics: Pick<MilestoneActionSemantics, "blockedReason" | "claimAfterTimeoutHint"> | null;
