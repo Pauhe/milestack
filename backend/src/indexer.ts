@@ -60,7 +60,7 @@ export async function syncIndexer() {
         txHash: log.transactionHash ?? zeroHash,
         logIndex: String(log.logIndex ?? 0),
         eventName,
-        summary: summarizeEvent(eventName),
+        summary: summarizeTimelineEvent(eventName),
         payloadJson: JSON.stringify(args),
       });
     }
@@ -149,7 +149,7 @@ export async function syncIndexer() {
           txHash: log.transactionHash ?? zeroHash,
           logIndex: String(log.logIndex ?? 0),
           eventName,
-          summary: summarizeEvent(eventName),
+          summary: summarizeTimelineEvent(eventName),
           payloadJson: JSON.stringify(toPayloadRecord(decoded.args)),
         });
       }
@@ -168,7 +168,7 @@ export async function syncIndexer() {
   return await transaction();
 }
 
-function summarizeEvent(eventName: string) {
+function summarizeBaseEvent(eventName: string) {
   switch (eventName) {
     case "EscrowCreated":
       return "Escrow deployed";
@@ -179,7 +179,7 @@ function summarizeEvent(eventName: string) {
     case "MilestoneApproved":
       return "Buyer approved milestone";
     case "MilestoneClaimed":
-      return "Seller claimed payout after review window";
+      return "Milestone payout finalized";
     case "MilestoneDisputed":
       return "Buyer opened a dispute";
     case "DisputeResolved":
@@ -195,20 +195,68 @@ function summarizeEvent(eventName: string) {
   }
 }
 
-export function deriveActorRole(eventName: string) {
+type TimelineSummaryContext = {
+  payload?: Record<string, unknown>;
+  previousEventName?: string | null;
+  nextEventName?: string | null;
+};
+
+export function summarizeTimelineEvent(eventName: string, context?: TimelineSummaryContext) {
+  if (eventName !== "MilestoneClaimed") {
+    return summarizeBaseEvent(eventName);
+  }
+
+  const previousEventName = context?.previousEventName ?? null;
+  const nextEventName = context?.nextEventName ?? null;
+
+  if (previousEventName === "MilestoneApproved" || nextEventName === "MilestoneApproved") {
+    return "Milestone payout finalized after buyer approval";
+  }
+
+  return "Milestone payout finalized (approval or seller timeout claim)";
+}
+
+export function deriveActorRole(eventName: string, context?: TimelineSummaryContext) {
   switch (eventName) {
     case "MilestoneFunded":
     case "MilestoneApproved":
     case "MilestoneDisputed":
       return "buyer";
     case "MilestoneSubmitted":
-    case "MilestoneClaimed":
       return "seller";
+    case "MilestoneClaimed":
+      return context?.previousEventName === "MilestoneApproved" || context?.nextEventName === "MilestoneApproved"
+        ? "buyer"
+        : "seller";
     case "DisputeResolved":
       return "arbiter";
     default:
       return null;
   }
+}
+
+export function deriveActorDetails(
+  eventName: string,
+  participants?: { buyer_address: string; seller_address: string; arbiter_address: string },
+  context?: { previousEventName?: string | null; nextEventName?: string | null }
+) {
+  const actorRole = deriveActorRole(eventName, context);
+
+  if (!actorRole || !participants) {
+    return null;
+  }
+
+  const actorAddress =
+    actorRole === "buyer"
+      ? participants.buyer_address
+      : actorRole === "seller"
+        ? participants.seller_address
+        : participants.arbiter_address;
+
+  return {
+    address: actorAddress,
+    role: actorRole,
+  };
 }
 
 function toPayloadRecord(value: unknown): Record<string, unknown> {

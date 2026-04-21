@@ -3,7 +3,8 @@ import { getAddress } from "viem";
 
 import { backendConfig, deploymentManifest } from "./config.js";
 import { getLastSyncedBlock } from "./db.js";
-import { deriveActorRole } from "./indexer.js";
+import { deriveEscrowOverviewSemantics, deriveMilestoneSemantics } from "./escrow-semantics.js";
+import { deriveActorDetails, summarizeTimelineEvent } from "./indexer.js";
 import {
   getEscrow,
   getEscrowParticipants,
@@ -42,32 +43,18 @@ app.post("/sync", async (_request, response) => {
 app.get("/escrows/:address/milestones", (request, response) => {
   try {
     const address = getAddress(request.params.address);
-    const escrow = getEscrow(address) as {
-      current_milestone_index: number;
-      active_dispute_milestone_id: string | null;
-    } | undefined;
+    const escrow = getEscrow(address);
     if (!escrow) {
       response.status(404).json({ error: "Escrow not indexed" });
       return;
     }
 
+    const nowUnixSeconds = Math.floor(Date.now() / 1000);
     const milestones = listMilestones(address).map((milestone) => ({
       ...milestone,
-      derived: {
-        isCurrent: Number(milestone.milestone_id) === Number(escrow.current_milestone_index),
-        isBlocked:
-          escrow.active_dispute_milestone_id !== null
-          && Number(milestone.milestone_id) > Number(escrow.current_milestone_index),
-        buyerCanApprove:
-          Number(milestone.status) === 2
-          && Number(milestone.milestone_id) === Number(escrow.current_milestone_index),
-        buyerCanDispute:
-          Number(milestone.status) === 2
-          && Number(milestone.milestone_id) === Number(escrow.current_milestone_index),
-        sellerCanClaim:
-          Number(milestone.status) === 2 && Number(milestone.review_deadline) > 0,
-      },
+      derived: deriveMilestoneSemantics(milestone, escrow, nowUnixSeconds),
     }));
+
     response.json({ items: milestones });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Invalid milestones request" });
@@ -82,12 +69,10 @@ app.get("/escrows/:address", async (request, response) => {
       response.status(404).json({ error: "Escrow not indexed" });
       return;
     }
+
     response.json({
       ...overview,
-      derived: {
-        isBlockedByDispute: overview.active_dispute_milestone_id !== null,
-        nextActionableMilestoneId: overview.current_milestone_index,
-      },
+      derived: deriveEscrowOverviewSemantics(overview),
     });
   } catch (error) {
     response.status(400).json({ error: error instanceof Error ? error.message : "Invalid escrow request" });
@@ -113,23 +98,25 @@ app.get("/escrows/:address/timeline", async (request, response) => {
   try {
     const address = getAddress(request.params.address);
     const participants = getEscrowParticipants(address);
-    const timeline = getTimeline(address).map((event) => {
-      const actorRole = deriveActorRole((event as { event_name: string }).event_name);
-      const actorAddress =
-        actorRole === "buyer"
-          ? participants?.buyer_address ?? null
-          : actorRole === "seller"
-            ? participants?.seller_address ?? null
-            : actorRole === "arbiter"
-              ? participants?.arbiter_address ?? null
-              : null;
+    const rawTimeline = getTimeline(address) as Array<{ event_name: string; payload_json: string; summary: string }>;
+
+    const timeline = rawTimeline.map((event, index) => {
+      const payload = JSON.parse(event.payload_json) as Record<string, unknown>;
+      const actor = deriveActorDetails(event.event_name, participants, {
+        previousEventName: index > 0 ? rawTimeline[index - 1]?.event_name : null,
+        nextEventName: index < rawTimeline.length - 1 ? rawTimeline[index + 1]?.event_name : null,
+      });
 
       return {
         time: null,
-        type: (event as { event_name: string }).event_name,
-        summary: (event as { summary: string }).summary,
-        actor: actorAddress && actorRole ? { address: actorAddress, role: actorRole } : null,
-        payload: JSON.parse((event as { payload_json: string }).payload_json),
+        type: event.event_name,
+        summary: summarizeTimelineEvent(event.event_name, {
+          payload,
+          previousEventName: index > 0 ? rawTimeline[index - 1]?.event_name : null,
+          nextEventName: index < rawTimeline.length - 1 ? rawTimeline[index + 1]?.event_name : null,
+        }),
+        actor,
+        payload,
       };
     });
 

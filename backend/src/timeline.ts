@@ -3,6 +3,7 @@ import { type Address, decodeEventLog } from "viem";
 import { escrowFactoryAbi } from "./abi/escrowFactoryAbi.js";
 import { milestoneEscrowAbi } from "./abi/milestoneEscrowAbi.js";
 import { deploymentManifest } from "./config.js";
+import { deriveActorRole, summarizeTimelineEvent } from "./indexer.js";
 import { publicClient } from "./clients.js";
 
 const trackedEventNames = new Set([
@@ -26,13 +27,25 @@ export async function readEscrowTimeline(address: Address) {
     publicClient.getLogs({ address, fromBlock: 0n }),
   ]);
 
-  return [...factoryLogs, ...escrowLogs]
+  const decoded = [...factoryLogs, ...escrowLogs]
     .sort((a, b) => {
       if (a.blockNumber !== b.blockNumber) return Number(a.blockNumber - b.blockNumber);
       return Number((a.logIndex ?? 0n) - (b.logIndex ?? 0n));
     })
     .map((log) => decodeLog(address, factoryAddress, log))
     .filter((item) => item !== null);
+
+  return decoded.map((event, index) => ({
+    ...event,
+    summary: summarizeTimelineEvent(event.eventName, {
+      previousEventName: index > 0 ? decoded[index - 1]?.eventName : null,
+      nextEventName: index < decoded.length - 1 ? decoded[index + 1]?.eventName : null,
+    }),
+    actorRole: deriveActorRole(event.eventName, {
+      previousEventName: index > 0 ? decoded[index - 1]?.eventName : null,
+      nextEventName: index < decoded.length - 1 ? decoded[index + 1]?.eventName : null,
+    }),
+  }));
 }
 
 function decodeLog(
@@ -58,7 +71,7 @@ function decodeLog(
       logIndex: log.logIndex,
       escrowAddress,
       eventName,
-      summary: summarizeEvent(eventName),
+      summary: summarizeTimelineEvent(eventName),
       payload: decoded.args,
     };
   } catch {
@@ -66,29 +79,3 @@ function decodeLog(
   }
 }
 
-function summarizeEvent(eventName: string) {
-  switch (eventName) {
-    case "EscrowCreated":
-      return "Escrow deployed";
-    case "MilestoneFunded":
-      return "Buyer funded milestone";
-    case "MilestoneSubmitted":
-      return "Seller submitted milestone evidence";
-    case "MilestoneApproved":
-      return "Buyer approved milestone";
-    case "MilestoneClaimed":
-      return "Seller claimed payout after review window";
-    case "MilestoneDisputed":
-      return "Buyer opened a dispute";
-    case "DisputeResolved":
-      return "Arbiter resolved disputed milestone";
-    case "MilestoneCancelled":
-      return "Remaining milestone cancelled";
-    case "DealCompleted":
-      return "Deal completed";
-    case "DealCancelled":
-      return "Deal cancelled";
-    default:
-      return eventName;
-  }
-}
