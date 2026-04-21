@@ -129,7 +129,8 @@ Provide the single source of truth for the deal's current state and next actions
 - deal status
 - milestone list with statuses
 - current actionable milestone
-- funded, released, refunded, and claimable totals
+- funded, released, refunded totals
+- timeout-eligible milestone payout amount (user-observable eligibility), not a guaranteed persisted `Claimable` status bucket
 - timeline of events
 
 ### Role-based actions
@@ -194,7 +195,7 @@ Show full context for one milestone and the allowed next actions.
 - dispute references if any
 - payout outcome if finalized
 
-### Role-based actions by state
+### Role-based actions by status and user-observable eligibility
 
 `PendingFunding`
 - Buyer: fund milestone if current and allowed
@@ -204,9 +205,9 @@ Show full context for one milestone and the allowed next actions.
 
 `Submitted`
 - Buyer: approve or dispute before deadline
-- Seller: read-only
+- Seller: read-only until timeout eligibility is reached
 
-`Claimable`
+`Submitted` (timeout-eligible)
 - Seller: claim payout
 
 `Disputed`

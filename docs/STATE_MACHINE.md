@@ -46,16 +46,19 @@ The MVP assumptions in this document are:
 
 ## 4. Milestone States
 
+Durable launch-runtime milestone states (user-observable via storage/events/read models):
 - `PendingFunding`
 - `Funded`
 - `Submitted`
-- `Approved`
-- `Claimable`
 - `Disputed`
-- `Resolved`
 - `PaidOut`
 - `Refunded`
 - `Cancelled`
+
+Conceptual or internal-only labels (not guaranteed durable runtime resting states in launch behavior):
+- `Approved` (transient execution step before payout finalization)
+- `Claimable` (derivable timeout-eligibility concept)
+- `Resolved` (conceptual dispute-phase label when outcomes are finalized as payout/refund)
 
 ### 4.1 Terminal milestone states
 
@@ -64,7 +67,7 @@ These states are terminal for MVP and must not transition again:
 - `Refunded`
 - `Cancelled`
 
-`Resolved` should be treated as an internal pre-terminal state only if the implementation uses separate resolution and transfer steps. The cleaner MVP implementation is to resolve and transfer within the same transaction whenever possible.
+`Resolved` is conceptual/internal-only unless implementation intentionally stores it as a durable pre-terminal state. In launch-runtime semantics, dispute outcomes are user-observable as `PaidOut` and/or `Refunded` settlement results.
 
 ## 5. Core Invariants
 
@@ -93,8 +96,8 @@ These states are terminal for MVP and must not transition again:
 | `PendingFunding` | `fundAllMilestones` | Buyer | allowed by implementation, no active dispute | `Funded` for each affected milestone | none |
 | `Funded` | `submitMilestone` | Seller | milestone is current actionable milestone | `Submitted` | none |
 | `Submitted` | `approveMilestone` | Buyer | before deadline, no active dispute | `Approved` then `PaidOut` | seller paid immediately |
-| `Submitted` | time passes beyond review deadline | none | no dispute opened | `Claimable` | none |
-| `Claimable` | `claimAfterReviewWindow` | Seller | review deadline passed, no dispute | `PaidOut` | seller paid immediately |
+| `Submitted` | time passes beyond review deadline | none | no dispute opened | derivably timeout-eligible (`Claimable` conceptual) | none |
+| `Submitted` (timeout-eligible) | `claimAfterReviewWindow` | Seller | review deadline passed, no dispute | `PaidOut` | seller paid immediately |
 | `Submitted` | `openDispute` | Buyer | before deadline | `Disputed` | none |
 | `Disputed` | `resolveDispute` | Arbiter | allocation valid | `Resolved` then `PaidOut` or `Refunded` | buyer, seller, or split payout |
 | `PendingFunding` | `cancelUnfundedMilestones` | allowed actor | milestone not funded | `Cancelled` | none |
@@ -203,9 +206,10 @@ Caller:
 - Seller only
 
 Allowed from:
-- `Claimable`
+- timeout-eligible `Submitted` milestone (eligibility is derivable from deadline)
 
 Preconditions:
+- milestone is `Submitted`
 - current time is greater than review deadline
 - no dispute was opened in time
 
@@ -216,7 +220,7 @@ Effects:
 
 Reverts if:
 - caller is not seller
-- milestone is not `Claimable`
+- milestone is not `Submitted` (or otherwise not timeout-eligible in an implementation that stores explicit claimability)
 - deadline not yet passed
 - active dispute exists
 
@@ -339,7 +343,7 @@ Suggested event mapping from transitions:
 | first funding | `MilestoneFunded` and optionally deal state change reflected in indexer |
 | submission | `MilestoneSubmitted` |
 | approval | `MilestoneApproved` |
-| timeout eligibility | optional `MilestoneClaimable`, or derived offchain |
+| timeout eligibility | optional `MilestoneClaimable`, or derived offchain/internal-only in launch-runtime semantics |
 | timeout claim | `MilestoneClaimed` |
 | dispute opened | `MilestoneDisputed` |
 | dispute resolved | `DisputeResolved` |

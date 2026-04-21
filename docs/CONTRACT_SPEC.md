@@ -141,7 +141,8 @@ enum MilestoneStatus {
 ```
 
 Implementation note:
-- `Resolved` may be internal-only in practice if dispute resolution and transfers happen in one transaction.
+- `Claimable` and `Resolved` are conceptual/internal-only labels unless implementation stores and surfaces them durably.
+- `Approved` is typically transient when approval finalizes payout in the same call flow.
 - `PaidOut`, `Refunded`, and `Cancelled` are terminal in MVP.
 
 ## 6. Structs
@@ -398,7 +399,7 @@ Caller:
 - seller only
 
 Preconditions:
-- milestone is `Claimable` or derivably claimable after deadline depending on implementation
+- milestone is `Submitted` and timeout-eligible (or explicitly `Claimable` if implementation stores that state)
 - current time is strictly greater than review deadline
 - no dispute was opened in time
 
@@ -418,7 +419,7 @@ Reverts on:
 - transfer failure
 
 Implementation preference:
-- explicit `Claimable` status is acceptable, but if it is not stored, the same condition must still be derivable consistently.
+- explicit `Claimable` status is optional; launch-runtime semantics should treat timeout claimability as derivable from `Submitted` + deadline + no active dispute.
 
 ### 9.6 `openDispute(uint256 milestoneId, bytes32 disputeHash)`
 
@@ -541,7 +542,7 @@ event DealCancelled();
 ```
 
 Event design rules:
-- emit on every meaningful user-visible transition
+- emit on every meaningful user-observable transition
 - include enough payload for indexers to reconstruct timelines efficiently
 - do not emit misleading events for states the contract never actually enters
 

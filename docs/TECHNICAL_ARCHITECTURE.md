@@ -215,7 +215,7 @@ Suggested onchain layout by concern:
 - totalReleasedToSeller
 - totalRefundedToBuyer
 
-Suggested milestone status enum (launch-runtime oriented):
+Suggested milestone status enum (launch-runtime oriented, user-observable):
 - `PendingFunding`
 - `Funded`
 - `Submitted`
@@ -225,9 +225,9 @@ Suggested milestone status enum (launch-runtime oriented):
 - `Refunded`
 - `Cancelled`
 
-Conceptual labels used in product explanations:
-- `Claimable` is an eligibility concept (for example seller timeout eligibility), not currently a guaranteed durable stored state.
-- `Resolved` is a conceptual dispute phase; runtime outcomes are represented as `PaidOut` or `Refunded`.
+Conceptual/internal-only labels used in product explanations:
+- `Claimable` is a derivable timeout-eligibility concept, not currently a guaranteed durable stored state.
+- `Resolved` is a conceptual dispute phase; launch-runtime outcomes are user-observable as `PaidOut` or `Refunded`.
 
 ### 4.5 State transition rules
 
@@ -347,7 +347,7 @@ Suggested events:
 
 Event interpretation caveat:
 - `MilestoneClaimed` represents seller payout finalization but may originate from either buyer approval or seller timeout claim flows; indexer and UI narration should derive the cause from surrounding context instead of assuming timeout by event name alone.
-- `MilestoneClaimable` can be kept as a conceptual/future event name, but should not be treated as emitted launch-runtime truth unless wired end-to-end.
+- `MilestoneClaimable` can be kept as a conceptual/future event name, but should not be treated as emitted launch-runtime truth unless wired end-to-end and made user-observable through indexed/read-model surfaces.
 
 Recommended event design rules:
 - every state transition that matters to the UI should have a dedicated event
