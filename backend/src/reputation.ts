@@ -21,6 +21,7 @@ type NormalizedEscrowLike = {
 const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000";
 const DEAL_STATUS_COMPLETED = 2;
 const MILESTONE_STATUS_PAID_OUT = 7;
+const MILESTONE_STATUS_REFUNDED = 8;
 
 export function recomputeUserRoleStats(updatedAtBlock: string) {
   const completedBuyerRows = db
@@ -71,11 +72,12 @@ export function recomputeUserRoleStats(updatedAtBlock: string) {
         SELECT e.seller_address AS address, COUNT(*) AS count
         FROM milestones m
         JOIN escrows e ON e.address = m.escrow_address
-        WHERE m.status = 7
+        WHERE m.status = ?
+          AND CAST(m.seller_award AS REAL) > 0
         GROUP BY e.seller_address
       `
     )
-    .all() as Array<{ address: string; count: number }>;
+    .all(MILESTONE_STATUS_PAID_OUT) as Array<{ address: string; count: number }>;
 
   const buyerDisputeRows = db
     .prepare(
@@ -95,11 +97,13 @@ export function recomputeUserRoleStats(updatedAtBlock: string) {
         SELECT e.seller_address AS address, COUNT(*) AS count
         FROM milestones m
         JOIN escrows e ON e.address = m.escrow_address
-        WHERE CAST(m.seller_award AS REAL) > CAST(m.buyer_award AS REAL)
+        WHERE m.dispute_hash != ?
+          AND (m.status = ? OR m.status = ?)
+          AND CAST(m.seller_award AS REAL) > CAST(m.buyer_award AS REAL)
         GROUP BY e.seller_address
       `
     )
-    .all() as Array<{ address: string; count: number }>;
+    .all(ZERO_HASH, MILESTONE_STATUS_PAID_OUT, MILESTONE_STATUS_REFUNDED) as Array<{ address: string; count: number }>;
 
   const buyerStats = mergeByAddress(completedBuyerRows, buyerVolumeRows, buyerDisputeRows);
   for (const item of buyerStats) {
@@ -130,6 +134,36 @@ export function recomputeUserRoleStats(updatedAtBlock: string) {
       updatedAtBlock,
     });
   }
+}
+
+function isMilestonePaidFromReplayableSemantics(milestone: Pick<NormalizedMilestoneLike, "status" | "sellerAward">) {
+  if (milestone.status !== MILESTONE_STATUS_PAID_OUT) {
+    return false;
+  }
+
+  return milestone.sellerAward > 0n;
+}
+
+function isMilestoneDisputeRecorded(disputeHash: string) {
+  return disputeHash.toLowerCase() !== ZERO_HASH;
+}
+
+function isSellerDisputeWin(milestone: Pick<NormalizedMilestoneLike, "status" | "disputeHash" | "buyerAward" | "sellerAward">) {
+  if (!isMilestoneDisputeRecorded(milestone.disputeHash)) {
+    return false;
+  }
+
+  const isResolved =
+    milestone.status === MILESTONE_STATUS_PAID_OUT ||
+    milestone.status === MILESTONE_STATUS_REFUNDED ||
+    milestone.buyerAward > 0n ||
+    milestone.sellerAward > 0n;
+
+  if (!isResolved) {
+    return false;
+  }
+
+  return milestone.sellerAward > milestone.buyerAward;
 }
 
 export function recomputeUserRoleStatsFromReadModels(input: {
@@ -175,7 +209,7 @@ export function recomputeUserRoleStatsFromReadModels(input: {
     const buyerAddress = escrow.buyerAddress.toLowerCase();
     const sellerAddress = escrow.sellerAddress.toLowerCase();
 
-    if (milestone.status === MILESTONE_STATUS_PAID_OUT) {
+    if (isMilestonePaidFromReplayableSemantics(milestone)) {
       const seller = sellerStats.get(sellerAddress) ?? {
         completedDeals: 0,
         completedMilestones: 0,
@@ -186,13 +220,13 @@ export function recomputeUserRoleStatsFromReadModels(input: {
       sellerStats.set(sellerAddress, seller);
     }
 
-    if (milestone.disputeHash.toLowerCase() !== ZERO_HASH) {
+    if (isMilestoneDisputeRecorded(milestone.disputeHash)) {
       const buyer = buyerStats.get(buyerAddress) ?? { completedDeals: 0, disputeCount: 0, totalVolume: 0n };
       buyer.disputeCount += 1;
       buyerStats.set(buyerAddress, buyer);
     }
 
-    if (milestone.sellerAward > milestone.buyerAward) {
+    if (isSellerDisputeWin(milestone)) {
       const seller = sellerStats.get(sellerAddress) ?? {
         completedDeals: 0,
         completedMilestones: 0,

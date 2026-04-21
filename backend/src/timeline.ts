@@ -2,9 +2,9 @@ import { type Address, decodeEventLog } from "viem";
 
 import { escrowFactoryAbi } from "./abi/escrowFactoryAbi.js";
 import { milestoneEscrowAbi } from "./abi/milestoneEscrowAbi.js";
+import { publicClient } from "./clients.js";
 import { deploymentManifest } from "./config.js";
 import { deriveActorRole, summarizeTimelineEvent } from "./indexer.js";
-import { publicClient } from "./clients.js";
 
 const trackedEventNames = new Set([
   "EscrowCreated",
@@ -18,6 +18,14 @@ const trackedEventNames = new Set([
   "DealCompleted",
   "DealCancelled",
 ]);
+
+function normalizeTimelinePayload(value: unknown): Record<string, unknown> {
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    return value as Record<string, unknown>;
+  }
+
+  return {};
+}
 
 export async function readEscrowTimeline(address: Address) {
   const factoryAddress = deploymentManifest.contracts.escrowFactory.address as Address;
@@ -38,12 +46,18 @@ export async function readEscrowTimeline(address: Address) {
   return decoded.map((event, index) => ({
     ...event,
     summary: summarizeTimelineEvent(event.eventName, {
+      payload: normalizeTimelinePayload(event.payload),
       previousEventName: index > 0 ? decoded[index - 1]?.eventName : null,
       nextEventName: index < decoded.length - 1 ? decoded[index + 1]?.eventName : null,
+      previousPayload: index > 0 ? normalizeTimelinePayload(decoded[index - 1]?.payload) : null,
+      nextPayload: index < decoded.length - 1 ? normalizeTimelinePayload(decoded[index + 1]?.payload) : null,
     }),
     actorRole: deriveActorRole(event.eventName, {
+      payload: normalizeTimelinePayload(event.payload),
       previousEventName: index > 0 ? decoded[index - 1]?.eventName : null,
       nextEventName: index < decoded.length - 1 ? decoded[index + 1]?.eventName : null,
+      previousPayload: index > 0 ? normalizeTimelinePayload(decoded[index - 1]?.payload) : null,
+      nextPayload: index < decoded.length - 1 ? normalizeTimelinePayload(decoded[index + 1]?.payload) : null,
     }),
   }));
 }
@@ -78,4 +92,3 @@ function decodeLog(
     return null;
   }
 }
-

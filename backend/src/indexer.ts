@@ -729,21 +729,64 @@ type TimelineSummaryContext = {
   payload?: Record<string, unknown>;
   previousEventName?: string | null;
   nextEventName?: string | null;
+  previousPayload?: Record<string, unknown> | null;
+  nextPayload?: Record<string, unknown> | null;
 };
+
+function readMilestoneId(payload?: Record<string, unknown> | null): bigint | null {
+  if (!payload || payload.milestoneId === undefined || payload.milestoneId === null) {
+    return null;
+  }
+
+  const raw = payload.milestoneId;
+  if (typeof raw === "bigint") {
+    return raw;
+  }
+
+  if (typeof raw === "number" && Number.isInteger(raw)) {
+    return BigInt(raw);
+  }
+
+  if (typeof raw === "string" && /^\d+$/.test(raw)) {
+    return BigInt(raw);
+  }
+
+  return null;
+}
+
+function hasAdjacentApprovalForSameMilestone(context?: TimelineSummaryContext) {
+  if (!context) {
+    return false;
+  }
+
+  const claimedMilestoneId = readMilestoneId(context.payload);
+
+  const previousMatches =
+    context.previousEventName === "MilestoneApproved" &&
+    claimedMilestoneId !== null &&
+    readMilestoneId(context.previousPayload) === claimedMilestoneId;
+
+  if (previousMatches) {
+    return true;
+  }
+
+  return (
+    context.nextEventName === "MilestoneApproved" &&
+    claimedMilestoneId !== null &&
+    readMilestoneId(context.nextPayload) === claimedMilestoneId
+  );
+}
 
 export function summarizeTimelineEvent(eventName: string, context?: TimelineSummaryContext) {
   if (eventName !== "MilestoneClaimed") {
     return summarizeBaseEvent(eventName);
   }
 
-  const previousEventName = context?.previousEventName ?? null;
-  const nextEventName = context?.nextEventName ?? null;
-
-  if (previousEventName === "MilestoneApproved" || nextEventName === "MilestoneApproved") {
+  if (hasAdjacentApprovalForSameMilestone(context)) {
     return "Milestone payout finalized after buyer approval";
   }
 
-  return "Milestone payout finalized (approval or seller timeout claim)";
+  return "Milestone payout finalized (approval or seller timeout claim remains ambiguous)";
 }
 
 export function deriveActorRole(eventName: string, context?: TimelineSummaryContext) {
@@ -755,9 +798,7 @@ export function deriveActorRole(eventName: string, context?: TimelineSummaryCont
     case "MilestoneSubmitted":
       return "seller";
     case "MilestoneClaimed":
-      return context?.previousEventName === "MilestoneApproved" || context?.nextEventName === "MilestoneApproved"
-        ? "buyer"
-        : "seller";
+      return hasAdjacentApprovalForSameMilestone(context) ? "buyer" : null;
     case "DisputeResolved":
       return "arbiter";
     default:
@@ -768,7 +809,13 @@ export function deriveActorRole(eventName: string, context?: TimelineSummaryCont
 export function deriveActorDetails(
   eventName: string,
   participants?: { buyer_address: string; seller_address: string; arbiter_address: string },
-  context?: { previousEventName?: string | null; nextEventName?: string | null }
+  context?: {
+    payload?: Record<string, unknown>;
+    previousEventName?: string | null;
+    nextEventName?: string | null;
+    previousPayload?: Record<string, unknown> | null;
+    nextPayload?: Record<string, unknown> | null;
+  }
 ) {
   const actorRole = deriveActorRole(eventName, context);
 

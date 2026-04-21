@@ -11,6 +11,8 @@ import {
   rebuildIndexerFromPersistedEvents,
   resetIndexerPublicClient,
   setIndexerPublicClient,
+  summarizeTimelineEvent,
+  deriveActorRole,
   syncIndexer,
 } from "./indexer.js";
 import {
@@ -119,6 +121,22 @@ test("syncIndexer is replay-safe and preserves deterministic projections across 
   } finally {
     resetIndexerPublicClient();
   }
+});
+
+test("timeline claim semantics stay ambiguous when adjacent approval is for a different milestone", () => {
+  const summary = summarizeTimelineEvent("MilestoneClaimed", {
+    payload: { milestoneId: "1" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(summary, "Milestone payout finalized (approval or seller timeout claim remains ambiguous)");
+
+  const actorRole = deriveActorRole("MilestoneClaimed", {
+    payload: { milestoneId: "1" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(actorRole, null);
 });
 
 test("syncIndexer persists failure state when RPC log discovery fails and keeps last successful checkpoint", async () => {

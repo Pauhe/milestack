@@ -229,9 +229,18 @@ export function createApp() {
 
       const timeline = rawTimeline.map((event, index) => {
         const payload = JSON.parse(event.payload_json) as Record<string, unknown>;
+        const previousPayload =
+          index > 0 ? (JSON.parse(rawTimeline[index - 1]?.payload_json ?? "{}") as Record<string, unknown>) : null;
+        const nextPayload =
+          index < rawTimeline.length - 1
+            ? (JSON.parse(rawTimeline[index + 1]?.payload_json ?? "{}") as Record<string, unknown>)
+            : null;
+
         const actor = deriveActorDetails(event.event_name, participants, {
           previousEventName: index > 0 ? rawTimeline[index - 1]?.event_name : null,
           nextEventName: index < rawTimeline.length - 1 ? rawTimeline[index + 1]?.event_name : null,
+          previousPayload,
+          nextPayload,
         });
 
         return {
@@ -241,6 +250,8 @@ export function createApp() {
             payload,
             previousEventName: index > 0 ? rawTimeline[index - 1]?.event_name : null,
             nextEventName: index < rawTimeline.length - 1 ? rawTimeline[index + 1]?.event_name : null,
+            previousPayload,
+            nextPayload,
           }),
           actor,
           payload,

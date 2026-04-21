@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc --noEmit",
-    "test": "tsx --test src/**/*.test.ts"
+    "test": "tsx --test"
   },
   "keywords": [],
   "author": "",

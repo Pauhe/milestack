@@ -72,17 +72,47 @@ test("deriveEscrowOverviewSemantics nulls nextActionableMilestoneId while disput
 });
 
 test("timeline summary avoids falsely attributing every payout to seller timeout", () => {
-  const approvalPath = summarizeTimelineEvent("MilestoneClaimed", { previousEventName: "MilestoneApproved" });
+  const approvalPath = summarizeTimelineEvent("MilestoneClaimed", {
+    payload: { milestoneId: "0" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
   assert.equal(approvalPath, "Milestone payout finalized after buyer approval");
 
-  const ambiguousPath = summarizeTimelineEvent("MilestoneClaimed", { previousEventName: "MilestoneSubmitted" });
-  assert.equal(ambiguousPath, "Milestone payout finalized (approval or seller timeout claim)");
+  const ambiguousPath = summarizeTimelineEvent("MilestoneClaimed", {
+    payload: { milestoneId: "0" },
+    previousEventName: "MilestoneSubmitted",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(ambiguousPath, "Milestone payout finalized (approval or seller timeout claim remains ambiguous)");
+
+  const adjacentButDifferentMilestone = summarizeTimelineEvent("MilestoneClaimed", {
+    payload: { milestoneId: "1" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(adjacentButDifferentMilestone, "Milestone payout finalized (approval or seller timeout claim remains ambiguous)");
 });
 
-test("actor role for MilestoneClaimed depends on adjacent approval context", () => {
-  const approvalClaimActor = deriveActorRole("MilestoneClaimed", { previousEventName: "MilestoneApproved" });
+test("actor role for MilestoneClaimed depends on proven adjacent approval context", () => {
+  const approvalClaimActor = deriveActorRole("MilestoneClaimed", {
+    payload: { milestoneId: "0" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
   assert.equal(approvalClaimActor, "buyer");
 
-  const timeoutClaimActor = deriveActorRole("MilestoneClaimed", { previousEventName: "MilestoneSubmitted" });
-  assert.equal(timeoutClaimActor, "seller");
+  const timeoutClaimActor = deriveActorRole("MilestoneClaimed", {
+    payload: { milestoneId: "0" },
+    previousEventName: "MilestoneSubmitted",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(timeoutClaimActor, null);
+
+  const adjacentButDifferentMilestoneActor = deriveActorRole("MilestoneClaimed", {
+    payload: { milestoneId: "1" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: "0" },
+  });
+  assert.equal(adjacentButDifferentMilestoneActor, null);
 });
