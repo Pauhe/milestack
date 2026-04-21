@@ -6,6 +6,8 @@ import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import {
   getActionAuthorityExplanationCopy,
   getDealOverviewTrustExplanationCopy,
+  getDisputeAuthorityExplanationCopy,
+  getDisputeFinalityExplanationCopy,
   getFreshnessExplanationCopy,
   getReviewDeadlineExplanationCopy,
   getTimelineTruthExplanationCopy,
@@ -254,5 +256,68 @@ describe("getActionAuthorityExplanationCopy", () => {
     });
 
     expect(copy).toContain("currently unavailable");
+  });
+});
+
+describe("dispute authority/finality explanations", () => {
+  it("keeps dispute authority conservative when freshness is unavailable", () => {
+    const copy = getDisputeAuthorityExplanationCopy({
+      arbiterGuidance: {
+        canSubmitResolution: false,
+        blockedReason: "Connect the designated arbiter wallet to resolve this dispute.",
+      },
+      visitorGuidance: {
+        blockedReason: "Only the designated arbiter can submit a dispute resolution.",
+      },
+      freshnessAssessment: makeFreshnessAssessment({
+        state: "unavailable",
+        degraded: true,
+      }),
+    });
+
+    expect(copy).toContain("conservative");
+    expect(copy).toContain("designated arbiter");
+  });
+
+  it("uses blocked guidance for arbiter-only authority when freshness is healthy", () => {
+    const copy = getDisputeAuthorityExplanationCopy({
+      arbiterGuidance: {
+        canSubmitResolution: false,
+        blockedReason: "Resolution is unavailable because this milestone is not in disputed status.",
+      },
+      visitorGuidance: {
+        blockedReason: "Only the designated arbiter can submit a dispute resolution.",
+      },
+      freshnessAssessment: makeFreshnessAssessment(),
+    });
+
+    expect(copy).toContain("Arbiter-only authority applies");
+    expect(copy).toContain("not in disputed status");
+  });
+
+  it("marks dispute finality as pending when arbiter guidance is blocked", () => {
+    const copy = getDisputeFinalityExplanationCopy({
+      disputeGuidance: {
+        canSubmitResolution: false,
+        blockedReason: "Another milestone is marked as the active dispute target. Refresh route context before resolving.",
+      },
+      freshnessAssessment: makeFreshnessAssessment(),
+    });
+
+    expect(copy).toContain("pending");
+    expect(copy).toContain("active dispute target");
+  });
+
+  it("degrades finality copy when freshness is stale", () => {
+    const copy = getDisputeFinalityExplanationCopy({
+      disputeGuidance: {
+        canSubmitResolution: true,
+        blockedReason: null,
+      },
+      freshnessAssessment: makeFreshnessAssessment({ state: "stale", degraded: true }),
+    });
+
+    expect(copy).toContain("conservative");
+    expect(copy).toContain("stale");
   });
 });

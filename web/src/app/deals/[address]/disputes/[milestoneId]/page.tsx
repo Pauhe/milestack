@@ -23,6 +23,12 @@ import {
   type MilestoneRole,
 } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance, deriveDisputeResolutionGuidance } from "@/lib/workflow-guidance";
+import {
+  getActionAuthorityExplanationCopy,
+  getDisputeAuthorityExplanationCopy,
+  getDisputeFinalityExplanationCopy,
+  getReviewDeadlineExplanationCopy,
+} from "@/lib/workflow-explanations";
 
 type DisputePageProps = {
   params: Promise<{
@@ -186,6 +192,28 @@ export default async function DisputePage({ params }: DisputePageProps) {
           ?? "Backend freshness is degraded; dispute actions remain blocked until truth reloads.",
       };
 
+  const reviewDeadlineExplanation = getReviewDeadlineExplanationCopy({
+    reviewDeadline: backendMilestone?.review_deadline ?? milestone.reviewDeadline,
+    milestoneStatus: milestone.status,
+    semantics,
+  });
+
+  const routeActionAuthorityExplanation = getActionAuthorityExplanationCopy({
+    guidance: routeGuidance,
+    semantics,
+  });
+
+  const disputeAuthorityExplanation = getDisputeAuthorityExplanationCopy({
+    arbiterGuidance,
+    visitorGuidance,
+    freshnessAssessment,
+  });
+
+  const disputeFinalityExplanation = getDisputeFinalityExplanationCopy({
+    disputeGuidance: arbiterGuidance,
+    freshnessAssessment,
+  });
+
   return (
     <section className="stack-lg">
       <div className="page-header stack-sm">
@@ -227,7 +255,13 @@ export default async function DisputePage({ params }: DisputePageProps) {
           <h2>Resolution rules</h2>
           <p>
             Buyer and seller awards must sum exactly to the milestone amount. Fees apply only to
-            the seller-side payout amount. The arbiter decision is final for this milestone.
+            the seller-side payout amount.
+          </p>
+          <p className="status-text" data-testid="dispute-authority-explanation">
+            Authority boundary: {disputeAuthorityExplanation}
+          </p>
+          <p className="status-text" data-testid="dispute-finality-explanation">
+            Finality boundary: {disputeFinalityExplanation}
           </p>
         </article>
       </section>
@@ -248,6 +282,12 @@ export default async function DisputePage({ params }: DisputePageProps) {
         </ul>
         <p className="status-text">Arbiter wallet guidance: {arbiterGuidance.blockedReason}</p>
         <p className="status-text">Non-arbiter guidance: {visitorGuidance.blockedReason}</p>
+        <p className="status-text" data-testid="dispute-review-deadline-explanation">
+          Review deadline meaning: {reviewDeadlineExplanation}
+        </p>
+        <p className="status-text" data-testid="dispute-route-authority-explanation">
+          Route authority: {routeActionAuthorityExplanation}
+        </p>
         {routeGuidance.blockedReason ? (
           <p className="status-text">Blocked: {routeGuidance.blockedReason}</p>
         ) : null}

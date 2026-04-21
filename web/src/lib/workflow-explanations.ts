@@ -1,6 +1,6 @@
 import type { BackendFreshnessAssessment, BackendFreshnessSurface } from "@/lib/backend";
 import type { MilestoneActionSemantics } from "@/lib/milestone-semantics";
-import type { ActionPanelGuidance } from "@/lib/workflow-guidance";
+import type { ActionPanelGuidance, DisputeResolutionGuidance } from "@/lib/workflow-guidance";
 
 type KnownFreshnessState = BackendFreshnessAssessment["state"];
 
@@ -223,4 +223,62 @@ export function getActionAuthorityExplanationCopy(input: ActionAuthorityExplanat
   }
 
   return "Action authority is derived from backend eligibility semantics and is currently unavailable.";
+}
+
+export type DisputeAuthorityExplanationInput = {
+  arbiterGuidance: Pick<DisputeResolutionGuidance, "blockedReason" | "canSubmitResolution"> | null;
+  visitorGuidance: Pick<DisputeResolutionGuidance, "blockedReason"> | null;
+  freshnessAssessment: BackendFreshnessAssessment | null | undefined;
+};
+
+export function getDisputeAuthorityExplanationCopy(input: DisputeAuthorityExplanationInput): string {
+  if (!input.arbiterGuidance || !input.visitorGuidance) {
+    return "Dispute authority is unavailable. Only the designated arbiter may finalize a disputed milestone once route truth is restored.";
+  }
+
+  const freshnessState = normalizeFreshnessState(input.freshnessAssessment?.state ?? null);
+  if (freshnessState !== "healthy") {
+    return `Dispute authority is conservative while backend freshness is ${freshnessState}. Only the designated arbiter should resolve disputes after route truth recovers.`;
+  }
+
+  if (input.arbiterGuidance.canSubmitResolution) {
+    return "Dispute authority is active for the designated arbiter. Arbiter resolution is final for this milestone once submitted onchain.";
+  }
+
+  if (input.arbiterGuidance.blockedReason && input.arbiterGuidance.blockedReason.length > 0) {
+    return `Arbiter-only authority applies, but resolution is currently blocked: ${input.arbiterGuidance.blockedReason}`;
+  }
+
+  if (input.visitorGuidance.blockedReason && input.visitorGuidance.blockedReason.length > 0) {
+    return `Arbiter-only authority applies: ${input.visitorGuidance.blockedReason}`;
+  }
+
+  return "Only the designated arbiter can finalize a dispute; keep authority messaging conservative until route guidance is available.";
+}
+
+export type DisputeFinalityExplanationInput = {
+  disputeGuidance: Pick<DisputeResolutionGuidance, "canSubmitResolution" | "blockedReason"> | null;
+  freshnessAssessment: BackendFreshnessAssessment | null | undefined;
+};
+
+export function getDisputeFinalityExplanationCopy(input: DisputeFinalityExplanationInput): string {
+  const freshnessState = normalizeFreshnessState(input.freshnessAssessment?.state ?? null);
+
+  if (freshnessState !== "healthy") {
+    return `Finality claims are conservative while backend freshness is ${freshnessState}. Confirm active dispute truth and arbiter eligibility before treating resolution outcomes as final.`;
+  }
+
+  if (!input.disputeGuidance) {
+    return "Dispute finality guidance is unavailable. Treat resolution outcomes as pending until arbiter eligibility and route truth are confirmed.";
+  }
+
+  if (input.disputeGuidance.canSubmitResolution) {
+    return "Arbiter resolution is final for this milestone once the exact buyer/seller split transaction confirms onchain.";
+  }
+
+  if (input.disputeGuidance.blockedReason && input.disputeGuidance.blockedReason.length > 0) {
+    return `Dispute finality is pending because arbiter resolution is blocked: ${input.disputeGuidance.blockedReason}`;
+  }
+
+  return "Dispute finality remains pending until arbiter resolution guidance is available.";
 }

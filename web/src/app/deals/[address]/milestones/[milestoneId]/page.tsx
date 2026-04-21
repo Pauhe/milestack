@@ -19,6 +19,10 @@ import {
   type MilestoneRole,
 } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
+import {
+  getActionAuthorityExplanationCopy,
+  getReviewDeadlineExplanationCopy,
+} from "@/lib/workflow-explanations";
 
 type MilestoneDetailPageProps = {
   params: Promise<{
@@ -154,6 +158,17 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
           ?? "Backend freshness is degraded; role actions stay conservative until eligibility truth reloads.",
       };
 
+  const reviewDeadlineExplanation = getReviewDeadlineExplanationCopy({
+    reviewDeadline: backendMilestone?.review_deadline ?? milestone.reviewDeadline,
+    milestoneStatus: milestone.status,
+    semantics,
+  });
+
+  const actionAuthorityExplanation = getActionAuthorityExplanationCopy({
+    guidance: routeGuidance,
+    semantics,
+  });
+
   return (
     <section className="stack-lg">
       <div className="page-header stack-sm">
@@ -222,6 +237,12 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
         {routeGuidance.claimAfterTimeoutHint ? (
           <p className="status-text">Timeout hint: {routeGuidance.claimAfterTimeoutHint}</p>
         ) : null}
+        <p className="status-text" data-testid="milestone-review-deadline-explanation">
+          Review deadline meaning: {reviewDeadlineExplanation}
+        </p>
+        <p className="status-text" data-testid="milestone-action-authority-explanation">
+          Action authority: {actionAuthorityExplanation}
+        </p>
         {routeGuidance.blockedReason ? (
           <p className="status-text">Blocked: {routeGuidance.blockedReason}</p>
         ) : null}
