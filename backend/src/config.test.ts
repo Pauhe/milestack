@@ -4,6 +4,8 @@ import test from "node:test";
 import localManifest from "../../deployments/local/manifest.json" with { type: "json" };
 import rehearsalManifest from "../../deployments/rehearsal-local/manifest.json" with { type: "json" };
 
+import { validateDeploymentManifest } from "./config.js";
+
 const ORIGINAL_ENV = process.env.DEPLOYMENT_ENV;
 
 function restoreEnv() {
@@ -34,7 +36,10 @@ test("getDeploymentManifest resolves rehearsal-local manifest explicitly", async
   const config = await import(`./config.js?case=rehearsal-${Date.now()}`);
 
   assert.equal(config.getDeploymentEnvironment(), "rehearsal-local");
-  assert.deepEqual(config.getDeploymentManifest(), rehearsalManifest);
+  assert.deepEqual(
+    config.getDeploymentManifest(),
+    validateDeploymentManifest(rehearsalManifest as typeof localManifest, "rehearsal-local")
+  );
 });
 
 test("getDeploymentManifest rejects unsupported deployment environment", async () => {
@@ -43,5 +48,30 @@ test("getDeploymentManifest rejects unsupported deployment environment", async (
   await assert.rejects(
     () => import(`./config.js?unsupported=${Date.now()}`),
     /Unsupported DEPLOYMENT_ENV/
+  );
+});
+
+test("validateDeploymentManifest rejects manifest/environment mismatch", () => {
+  assert.throws(
+    () => validateDeploymentManifest(localManifest, "rehearsal-local"),
+    /environment mismatch/
+  );
+});
+
+test("validateDeploymentManifest rejects malformed critical fields", () => {
+  const malformed = {
+    ...localManifest,
+    contracts: {
+      ...localManifest.contracts,
+      escrowFactory: {
+        ...localManifest.contracts.escrowFactory,
+        address: "not-an-address",
+      },
+    },
+  };
+
+  assert.throws(
+    () => validateDeploymentManifest(malformed as typeof localManifest, "local"),
+    /contracts\.escrowFactory\.address/
   );
 });

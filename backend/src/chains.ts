@@ -5,10 +5,17 @@ import { backendConfig } from "./config.js";
 const supportedChains = [anvil, base, baseSepolia] as const;
 
 export function getConfiguredChain(): Chain {
-  return (
-    supportedChains.find((chain) => chain.id === backendConfig.deploymentManifest.chain.chainId) ??
-    baseSepolia
-  );
+  const chainId = backendConfig.deploymentManifest.chain.chainId;
+  const chain = supportedChains.find((candidate) => candidate.id === chainId);
+
+  if (!chain) {
+    const supported = supportedChains.map((candidate) => candidate.id).join(", ");
+    throw new Error(
+      `Unsupported manifest chain id ${chainId}. Supported chain ids for backend runtime: ${supported}`
+    );
+  }
+
+  return chain;
 }
 
 export const configuredChain = getConfiguredChain();

@@ -128,6 +128,10 @@ test("/health exposes canonical freshness, lag, phase, and loop observability", 
   assert.equal(status, 200);
   assert.equal(body.ok, true);
 
+  const runtime = body.runtime as Record<string, unknown>;
+  assert.equal(runtime.deploymentEnv, process.env.DEPLOYMENT_ENV ?? "local");
+  assert.equal(runtime.manifestVersion, 1);
+
   const sync = body.sync as Record<string, unknown>;
   assert.equal(sync.indexedBlock, "148");
   assert.equal(sync.chainHead, "150");
@@ -138,9 +142,40 @@ test("/health exposes canonical freshness, lag, phase, and loop observability", 
   assert.equal(sync.degraded, true);
   assert.equal(sync.lastError, null);
 
+  const syncRuntime = sync.runtime as Record<string, unknown>;
+  assert.equal(syncRuntime.deploymentEnv, process.env.DEPLOYMENT_ENV ?? "local");
+  assert.equal(syncRuntime.chainId, body.chainId);
+  assert.equal(syncRuntime.manifestVersion, 1);
+  assert.equal(syncRuntime.manifestEnvironment, body.environment);
+  assert.equal(syncRuntime.contractAddress, body.factoryAddress);
+  assert.equal(typeof syncRuntime.usdcAddress, "string");
+  assert.equal(typeof syncRuntime.protocolFeeBps, "number");
+
   const loop = sync.loop as Record<string, unknown>;
   assert.equal(loop.isSyncing, true);
   assert.equal(loop.activeSyncStartedAt, "2026-02-01T00:01:05.000Z");
+});
+
+test("/health degrades safely when persisted sync state is malformed", async () => {
+  resetDb();
+  resetLoopState();
+
+  db.prepare(`INSERT INTO sync_state (key, value) VALUES (?, ?)`).run("last_successful_block", "not-a-bigint");
+  db.prepare(`INSERT INTO sync_state (key, value) VALUES (?, ?)`).run("chain_head_seen", "still-not-a-bigint");
+
+  const { status, body } = await jsonRequest("/health");
+
+  assert.equal(status, 200);
+  assert.equal(body.ok, true);
+
+  const sync = body.sync as Record<string, unknown>;
+  assert.equal(sync.freshness, "unavailable");
+  assert.equal(sync.degraded, true);
+  assert.equal(sync.phase, "unknown");
+  assert.equal(sync.status, "unknown");
+  assert.equal(sync.indexedBlock, null);
+  assert.equal(sync.chainHead, null);
+  assert.match(String(sync.lastError), /sync health metadata malformed/);
 });
 
 test("derived endpoints attach freshness metadata for fresh, rebuilding, and failed states", async () => {

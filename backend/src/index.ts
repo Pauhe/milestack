@@ -53,6 +53,17 @@ type HealthPayload = {
     lastSyncAt: string | null;
     lastSyncError: string | null;
   };
+  runtime: {
+    deploymentEnv: string;
+    chainId: number;
+    chainName: string;
+    manifestVersion: number;
+    manifestEnvironment: string;
+    contractAddress: string;
+    usdcAddress: string;
+    protocolFeeBps: number;
+    metadataVisibility: string | null;
+  };
 };
 
 type HashContextTruth = {
@@ -67,6 +78,10 @@ type HashContextTruth = {
 function sanitizeErrorMessage(error: unknown) {
   const raw = error instanceof Error ? error.message : String(error);
   return raw.replace(/\s+/g, " ").trim().slice(0, 512);
+}
+
+function readDeploymentEnv() {
+  return process.env.DEPLOYMENT_ENV ?? "local";
 }
 
 function safeReadSyncHealth(): { health: SyncHealthState | null; error: string | null } {
@@ -148,6 +163,17 @@ function buildHealthPayload(): HealthPayload {
       activeSyncStartedAt: syncLoopState.activeSyncStartedAt,
       lastSyncAt: syncLoopState.lastSyncAt,
       lastSyncError: syncLoopState.lastSyncError,
+    },
+    runtime: {
+      deploymentEnv: readDeploymentEnv(),
+      chainId: deploymentManifest.chain.chainId,
+      chainName: deploymentManifest.chain.name,
+      manifestVersion: deploymentManifest.version,
+      manifestEnvironment: deploymentManifest.environment,
+      contractAddress: deploymentManifest.contracts.escrowFactory.address,
+      usdcAddress: deploymentManifest.config.usdc,
+      protocolFeeBps: deploymentManifest.config.protocolFeeBps,
+      metadataVisibility: deploymentManifest.config.metadataVisibility ?? null,
     },
   };
 }
@@ -267,6 +293,10 @@ export function createApp() {
       chainId: deploymentManifest.chain.chainId,
       factoryAddress: deploymentManifest.contracts.escrowFactory.address,
       sync: buildHealthPayload(),
+      runtime: {
+        deploymentEnv: readDeploymentEnv(),
+        manifestVersion: deploymentManifest.version,
+      },
     });
   });
 
