@@ -571,7 +571,6 @@ error DeadlinePassed();
 error InvalidEvidenceHash();
 error InvalidDisputeHash();
 error InvalidResolutionSplit();
-error TransferFailed();
 error NothingToCancel();
 ```
 ```

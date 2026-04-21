@@ -1,25 +1,38 @@
-# Contracts
+## Contracts Dependencies
 
-This directory contains the Milestack smart contract workspace.
+The contracts workspace uses Foundry with libraries stored under `contracts/lib`.
 
-## Intended Tooling
+Current dependencies:
+- `forge-std`
+- `@openzeppelin/contracts`
 
-- Foundry for compilation and tests
-- Anvil for local chain testing
+### OpenZeppelin
 
-## Current State
+OpenZeppelin Contracts is installed under:
 
-The environment used to scaffold this repo does not have `forge` installed, so this workspace was created manually in Foundry layout.
+- `contracts/lib/openzeppelin-contracts`
 
-Planned first implementation steps:
-1. define shared types, enums, events, and custom errors
-2. implement `EscrowFactory`
-3. implement `MilestoneEscrow`
-4. add unit tests, then fuzz/invariant tests
+Foundry remappings are configured in:
 
-## Structure
+- `contracts/remappings.txt`
+- `contracts/foundry.toml`
 
-- `src/`: Solidity source files
-- `test/`: contract tests
-- `script/`: deployment and utility scripts
-- `lib/`: external dependencies
+Canonical import style:
+
+```solidity
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+```
+
+### Testing
+
+Run the full contracts test suite with:
+
+```bash
+forge test
+```
+
+The suite includes:
+- unit tests
+- fuzz tests
+- invariant tests
