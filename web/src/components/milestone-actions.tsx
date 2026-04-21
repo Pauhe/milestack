@@ -15,6 +15,7 @@ import { configuredChain } from "@/lib/chains";
 import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 import type { EscrowMilestone, EscrowOverview } from "@/lib/contracts/milestone-escrow";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
+import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { getDealStatusLabel } from "@/lib/status";
 
 type MilestoneActionsProps = {
@@ -89,6 +90,19 @@ export function MilestoneActions({
     ]
   );
 
+  const guidance = useMemo(
+    () =>
+      deriveActionPanelGuidance({
+        role,
+        isConnected,
+        isWrongChain,
+        hasCurrentMilestone: true,
+        semantics,
+        disputeRouteHref: `/deals/${overview.address}/disputes/${milestoneId.toString()}`,
+      }),
+    [isConnected, isWrongChain, milestoneId, overview.address, role, semantics]
+  );
+
   function refreshAfterWrite() {
     router.refresh();
   }
@@ -146,7 +160,9 @@ export function MilestoneActions({
           </div>
         )}
 
-        {isWrongChain ? <p className="status-text">Switch to {configuredChain.name} to perform contract actions.</p> : null}
+        {guidance.wrongChainMessage ? (
+          <p className="status-text">{guidance.wrongChainMessage}</p>
+        ) : null}
         {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
         {error ? <p className="status-text">Write error: {error.message}</p> : null}
       </article>
@@ -154,6 +170,10 @@ export function MilestoneActions({
       <article className="panel stack-md">
         <div className="eyebrow">Milestone actions</div>
         <h2>Allowed next step</h2>
+
+        <p className="status-text">
+          {guidance.nextStepLabel}: {guidance.nextStepMessage}
+        </p>
 
         <div className="stack-md">
           {semantics.canFund ? (
@@ -226,8 +246,8 @@ export function MilestoneActions({
             </div>
           ) : null}
 
-          {semantics.claimAfterTimeoutHint ? (
-            <p className="status-text">{semantics.claimAfterTimeoutHint}</p>
+          {guidance.claimAfterTimeoutHint ? (
+            <p className="status-text">{guidance.claimAfterTimeoutHint}</p>
           ) : null}
 
           {semantics.canClaimAfterTimeout ? (
@@ -241,14 +261,14 @@ export function MilestoneActions({
             </button>
           ) : null}
 
-          {semantics.canResolveDispute ? (
-            <a className="button button--ghost" href={`/deals/${overview.address}/disputes/${milestoneId.toString()}`}>
-              Open dispute resolution
+          {guidance.disputeRoute ? (
+            <a className="button button--ghost" href={guidance.disputeRoute.href}>
+              {guidance.disputeRoute.label}
             </a>
           ) : null}
 
-          {!semantics.hasAction ? (
-            <p className="status-text">{semantics.blockedReason}</p>
+          {guidance.blockedReason ? (
+            <p className="status-text">{guidance.blockedReason}</p>
           ) : null}
         </div>
       </article>

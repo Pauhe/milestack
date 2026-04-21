@@ -15,6 +15,7 @@ import { configuredChain } from "@/lib/chains";
 import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 import type { EscrowOverview } from "@/lib/contracts/milestone-escrow";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
+import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { getDealStatusLabel } from "@/lib/status";
 
 type DealActionsProps = {
@@ -85,6 +86,28 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
     ]
   );
 
+  const disputeRouteHref = useMemo(() => {
+    if (!semantics?.canResolveDispute) return null;
+
+    const disputeMilestone = Number(overview.currentMilestoneIndex);
+    if (!Number.isInteger(disputeMilestone) || disputeMilestone < 0) return null;
+
+    return `/deals/${overview.address}/disputes/${disputeMilestone}`;
+  }, [overview.address, overview.currentMilestoneIndex, semantics?.canResolveDispute]);
+
+  const guidance = useMemo(
+    () =>
+      deriveActionPanelGuidance({
+        role,
+        isConnected,
+        isWrongChain,
+        hasCurrentMilestone: Boolean(overview.currentMilestone),
+        semantics,
+        disputeRouteHref,
+      }),
+    [disputeRouteHref, isConnected, isWrongChain, overview.currentMilestone, role, semantics]
+  );
+
   function refreshAfterWrite() {
     router.refresh();
   }
@@ -144,8 +167,8 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
           </div>
         )}
 
-        {isWrongChain ? (
-          <p className="status-text">Switch to {configuredChain.name} to perform contract actions.</p>
+        {guidance.wrongChainMessage ? (
+          <p className="status-text">{guidance.wrongChainMessage}</p>
         ) : null}
 
         {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
@@ -155,6 +178,10 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
       <article className="panel stack-md">
         <div className="eyebrow">Current milestone actions</div>
         <h2>Available actions</h2>
+
+        <p className="status-text">
+          {guidance.nextStepLabel}: {guidance.nextStepMessage}
+        </p>
 
         {overview.currentMilestone ? (
           <div className="stack-md">
@@ -230,8 +257,8 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
               </div>
             ) : null}
 
-            {semantics?.claimAfterTimeoutHint ? (
-              <p className="status-text">{semantics.claimAfterTimeoutHint}</p>
+            {guidance.claimAfterTimeoutHint ? (
+              <p className="status-text">{guidance.claimAfterTimeoutHint}</p>
             ) : null}
 
             {semantics?.canClaimAfterTimeout ? (
@@ -245,18 +272,18 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
               </button>
             ) : null}
 
-            {semantics?.canResolveDispute ? (
-              <p className="status-text">
-                Open the dispute view to submit the arbiter split for this milestone.
-              </p>
+            {guidance.disputeRoute ? (
+              <a className="button button--ghost" href={guidance.disputeRoute.href}>
+                {guidance.disputeRoute.label}
+              </a>
             ) : null}
 
-            {semantics && !semantics.hasAction ? (
-              <p className="status-text">{semantics.blockedReason}</p>
+            {guidance.blockedReason ? (
+              <p className="status-text">{guidance.blockedReason}</p>
             ) : null}
           </div>
         ) : (
-          <p className="status-text">No current milestone data is available for this escrow.</p>
+          <p className="status-text">{guidance.blockedReason ?? "No current milestone data is available for this escrow."}</p>
         )}
       </article>
     </section>

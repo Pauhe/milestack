@@ -14,6 +14,7 @@ import {
 import { configuredChain } from "@/lib/chains";
 import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 import type { EscrowMilestone, EscrowOverview } from "@/lib/contracts/milestone-escrow";
+import { deriveDisputeResolutionGuidance } from "@/lib/workflow-guidance";
 
 type DisputeResolutionFormProps = {
   overview: EscrowOverview;
@@ -55,12 +56,40 @@ export function DisputeResolutionForm({ overview, milestoneId, milestone }: Disp
   const totalAward = (parsedBuyerAward ?? 0n) + (parsedSellerAward ?? 0n);
   const isExactSplit = parsedBuyerAward !== null && parsedSellerAward !== null && totalAward === milestone.amount;
 
+  const guidance = useMemo(
+    () =>
+      deriveDisputeResolutionGuidance({
+        role,
+        isConnected,
+        isWrongChain,
+        isBusy,
+        milestoneStatus: milestone.status,
+        milestoneId,
+        activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
+        hasValidBuyerAward: parsedBuyerAward !== null,
+        hasValidSellerAward: parsedSellerAward !== null,
+        isExactSplit,
+      }),
+    [
+      role,
+      isConnected,
+      isWrongChain,
+      isBusy,
+      milestone.status,
+      milestoneId,
+      overview.activeDisputeMilestoneId,
+      parsedBuyerAward,
+      parsedSellerAward,
+      isExactSplit,
+    ]
+  );
+
   function refreshAfterWrite() {
     router.refresh();
   }
 
   function handleResolve() {
-    if (!isExactSplit || parsedBuyerAward === null || parsedSellerAward === null) return;
+    if (!guidance.canSubmitResolution || parsedBuyerAward === null || parsedSellerAward === null) return;
 
     writeContract(
       {
@@ -111,7 +140,7 @@ export function DisputeResolutionForm({ overview, milestoneId, milestone }: Disp
           </div>
         )}
 
-        {isWrongChain ? <p className="status-text">Switch to {configuredChain.name} to resolve.</p> : null}
+        {guidance.wrongChainMessage ? <p className="status-text">{guidance.wrongChainMessage}</p> : null}
         {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
         {error ? <p className="status-text">Resolution error: {error.message}</p> : null}
       </article>
@@ -153,18 +182,14 @@ export function DisputeResolutionForm({ overview, milestoneId, milestone }: Disp
             Current split total: {formatUnits(totalAward, 6)} / {milestoneAmountText} USDC
           </p>
 
-          {parsedBuyerAward === null || parsedSellerAward === null ? (
-            <p className="status-text">Enter valid USDC amounts with up to 6 decimal places.</p>
-          ) : isExactSplit ? (
-            <p className="status-text">The split matches the milestone amount exactly.</p>
-          ) : (
-            <p className="status-text">Buyer and seller awards must sum exactly to the milestone amount.</p>
-          )}
+          <p className="status-text">{guidance.splitMessage}</p>
         </div>
+
+        {guidance.blockedReason ? <p className="status-text">{guidance.blockedReason}</p> : null}
 
         <button
           className="button button--primary"
-          disabled={role !== "arbiter" || isWrongChain || isBusy || !isExactSplit}
+          disabled={!guidance.canSubmitResolution}
           onClick={handleResolve}
           type="button"
         >
