@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "environment": "local",
+  "chain": {
+    "chainId": 84532,
+    "name": "base-sepolia"
+  },
+  "deployedAt": {
+    "blockNumber": 0,
+    "timestamp": "2026-04-21T00:00:00Z",
+    "txHash": "0x0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "contracts": {
+    "escrowFactory": {
+      "address": "0x1111111111111111111111111111111111111111",
+      "deploymentTxHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+      "verified": false
+    }
+  },
+  "config": {
+    "usdc": "0x2222222222222222222222222222222222222222",
+    "feeRecipient": "0x3333333333333333333333333333333333333333",
+    "protocolFeeBps": 100,
+    "creationPauseSupported": true,
+    "defaultReviewWindowSeconds": 432000,
+    "metadataVisibility": "public"
+  },
+  "artifacts": {
+    "commitSha": "local-dev",
+    "contractBuildId": "foundry-local"
+  },
+  "frontend": {
+    "defaultDealMetadataPath": "/demo/deal-metadata.json"
+  }
+}

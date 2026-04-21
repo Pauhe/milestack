@@ -1,0 +1,227 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { type Address } from "viem";
+import {
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi";
+
+import { configuredChain } from "@/lib/chains";
+import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
+import type { EscrowOverview } from "@/lib/contracts/milestone-escrow";
+import { getDealStatusLabel, getMilestoneStatusLabel } from "@/lib/status";
+
+type DealActionsProps = {
+  overview: EscrowOverview;
+};
+
+type Role = "buyer" | "seller" | "arbiter" | "visitor";
+
+export function DealActions({ overview }: DealActionsProps) {
+  const router = useRouter();
+  const { address, chainId, isConnected } = useAccount();
+  const { connect, connectors, isPending: isConnectPending } = useConnect();
+  const { disconnect } = useDisconnect();
+  const { data: hash, error, isPending, writeContract } = useWriteContract();
+  const [evidenceHash, setEvidenceHash] = useState(overview.currentMilestone?.evidenceHash ?? "");
+  const [disputeHash, setDisputeHash] = useState(overview.currentMilestone?.disputeHash ?? "");
+
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({
+    hash,
+    query: {
+      enabled: Boolean(hash),
+    },
+  });
+
+  const role = useMemo<Role>(() => {
+    if (!address) return "visitor";
+    if (address.toLowerCase() === overview.buyer.toLowerCase()) return "buyer";
+    if (address.toLowerCase() === overview.seller.toLowerCase()) return "seller";
+    if (address.toLowerCase() === overview.arbiter.toLowerCase()) return "arbiter";
+    return "visitor";
+  }, [address, overview.arbiter, overview.buyer, overview.seller]);
+
+  const currentMilestoneId = Number(overview.currentMilestoneIndex);
+  const currentMilestoneStatus = overview.currentMilestone?.status;
+  const isWrongChain = isConnected && chainId !== configuredChain.id;
+  const isBusy = isPending || isConfirming;
+
+  function refreshAfterWrite() {
+    router.refresh();
+  }
+
+  async function runWrite(functionName: string, args: readonly unknown[]) {
+    writeContract(
+      {
+        address: overview.address as Address,
+        abi: milestoneEscrowAbi,
+        functionName,
+        args,
+      },
+      {
+        onSuccess: () => {
+          refreshAfterWrite();
+        },
+      }
+    );
+  }
+
+  return (
+    <section className="stack-lg">
+      <article className="panel stack-md">
+        <div className="eyebrow">Connected role</div>
+        <h2>{role === "visitor" ? "Read-only visitor" : role}</h2>
+        <p>
+          Deal status: {getDealStatusLabel(overview.dealStatus)}. Current milestone status: {" "}
+          {overview.currentMilestone ? getMilestoneStatusLabel(overview.currentMilestone.status) : "Not available"}.
+        </p>
+
+        {!isConnected ? (
+          <div className="stack-sm">
+            <p>Connect a wallet to unlock role-specific milestone actions.</p>
+            <div className="action-row">
+              {connectors.map((connector) => (
+                <button
+                  key={connector.uid}
+                  className="button button--primary"
+                  disabled={isConnectPending}
+                  onClick={() => connect({ connector })}
+                  type="button"
+                >
+                  Connect {connector.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="stack-sm">
+            <p>Wallet: {address}</p>
+            <p>Chain: {chainId === configuredChain.id ? configuredChain.name : `Wrong network (${chainId})`}</p>
+            <div className="action-row">
+              <button className="button button--ghost" onClick={() => disconnect()} type="button">
+                Disconnect
+              </button>
+            </div>
+          </div>
+        )}
+
+        {isWrongChain ? (
+          <p className="status-text">Switch to {configuredChain.name} to perform contract actions.</p>
+        ) : null}
+
+        {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
+        {error ? <p className="status-text">Write error: {error.message}</p> : null}
+      </article>
+
+      <article className="panel stack-md">
+        <div className="eyebrow">Current milestone actions</div>
+        <h2>Available actions</h2>
+
+        {overview.currentMilestone ? (
+          <div className="stack-md">
+            {role === "buyer" && currentMilestoneStatus === 0 ? (
+              <button
+                className="button button--primary"
+                disabled={isBusy || isWrongChain}
+                onClick={() => runWrite("fundMilestone", [BigInt(currentMilestoneId)])}
+                type="button"
+              >
+                Fund milestone
+              </button>
+            ) : null}
+
+            {role === "seller" && currentMilestoneStatus === 1 ? (
+              <div className="stack-sm">
+                <label className="field stack-sm">
+                  <span>Evidence hash</span>
+                  <input
+                    className="text-input"
+                    onChange={(event) => setEvidenceHash(event.target.value)}
+                    placeholder="0x..."
+                    value={evidenceHash}
+                  />
+                </label>
+                <button
+                  className="button button--primary"
+                  disabled={isBusy || isWrongChain || evidenceHash.length === 0}
+                  onClick={() => runWrite("submitMilestone", [BigInt(currentMilestoneId), evidenceHash])}
+                  type="button"
+                >
+                  Submit milestone
+                </button>
+              </div>
+            ) : null}
+
+            {role === "buyer" && currentMilestoneStatus === 2 ? (
+              <div className="stack-sm">
+                <div className="action-row">
+                  <button
+                    className="button button--primary"
+                    disabled={isBusy || isWrongChain}
+                    onClick={() => runWrite("approveMilestone", [BigInt(currentMilestoneId)])}
+                    type="button"
+                  >
+                    Approve milestone
+                  </button>
+                </div>
+
+                <label className="field stack-sm">
+                  <span>Dispute hash</span>
+                  <input
+                    className="text-input"
+                    onChange={(event) => setDisputeHash(event.target.value)}
+                    placeholder="0x..."
+                    value={disputeHash}
+                  />
+                </label>
+                <button
+                  className="button button--ghost"
+                  disabled={isBusy || isWrongChain || disputeHash.length === 0}
+                  onClick={() => runWrite("openDispute", [BigInt(currentMilestoneId), disputeHash])}
+                  type="button"
+                >
+                  Open dispute
+                </button>
+              </div>
+            ) : null}
+
+            {role === "seller" && currentMilestoneStatus === 2 ? (
+              <button
+                className="button button--primary"
+                disabled={isBusy || isWrongChain}
+                onClick={() => runWrite("claimAfterReviewWindow", [BigInt(currentMilestoneId)])}
+                type="button"
+              >
+                Claim after timeout
+              </button>
+            ) : null}
+
+            {role === "arbiter" && currentMilestoneStatus === 5 ? (
+              <p className="status-text">
+                Arbiter resolution form is next. This page now detects the arbiter role and disputed
+                milestone state.
+              </p>
+            ) : null}
+
+            {!([
+              role === "buyer" && currentMilestoneStatus === 0,
+              role === "seller" && currentMilestoneStatus === 1,
+              role === "buyer" && currentMilestoneStatus === 2,
+              role === "seller" && currentMilestoneStatus === 2,
+              role === "arbiter" && currentMilestoneStatus === 5,
+            ].some(Boolean)) ? (
+              <p className="status-text">No direct action is available for the connected role in this state.</p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="status-text">No current milestone data is available for this escrow.</p>
+        )}
+      </article>
+    </section>
+  );
+}

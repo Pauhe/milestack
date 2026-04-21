@@ -36,3 +36,21 @@ The suite includes:
 - unit tests
 - fuzz tests
 - invariant tests
+
+### Deployment
+
+Deploy the factory with the Foundry script:
+
+```bash
+forge script script/DeployEscrowFactory.s.sol:DeployEscrowFactory --private-key "$PRIVATE_KEY" --broadcast
+```
+
+Use the repository wrapper to deploy and write a manifest automatically:
+
+```bash
+USDC_ADDRESS=0x... \
+FEE_RECIPIENT=0x... \
+PROTOCOL_FEE_BPS=100 \
+PRIVATE_KEY=0x... \
+./scripts/deploy-factory-and-write-manifest.sh
+```

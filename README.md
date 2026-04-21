@@ -2,6 +2,7 @@
 
 [![Contracts](https://github.com/Pauhe/milestack/actions/workflows/contracts.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/contracts.yml)
 [![Slither](https://github.com/Pauhe/milestack/actions/workflows/slither.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/slither.yml)
+[![Backend](https://github.com/Pauhe/milestack/actions/workflows/backend.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/backend.yml)
 
 Milestack is a non-custodial milestone escrow platform for digital work on Ethereum L2s.
 
@@ -64,6 +65,7 @@ Why this segment:
 
 - Contracts workspace guide: [`contracts/README.md`](./contracts/README.md)
 - Contracts maintenance runbook: [`docs/CONTRACTS_RUNBOOK.md`](./docs/CONTRACTS_RUNBOOK.md)
+- Local stack runbook: [`docs/LOCAL_STACK_RUNBOOK.md`](./docs/LOCAL_STACK_RUNBOOK.md)
 
 ## Current Docs
 

@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "title": "Website redesign for ExampleCo",
+  "summary": "Design and implement a five-page marketing site with milestone-based review.",
+  "visibility": "public",
+  "buyer": {
+    "address": "0x0b0b000000000000000000000000000000000000",
+    "displayName": "ExampleCo"
+  },
+  "seller": {
+    "address": "0xa11ce00000000000000000000000000000000000",
+    "displayName": "Studio North"
+  },
+  "arbiter": {
+    "address": "0xcafe000000000000000000000000000000000000",
+    "displayName": "Neutral Arbiter LLC"
+  },
+  "termsUrl": "https://example.com/terms/milestack-demo",
+  "milestones": [
+    {
+      "id": 0,
+      "title": "Discovery and wireframes",
+      "description": "Deliver wireframes for the homepage, pricing page, and contact page.",
+      "defaultReviewWindowSeconds": 432000
+    },
+    {
+      "id": 1,
+      "title": "Build and QA",
+      "description": "Implement the approved design, mobile polish, and handoff notes.",
+      "defaultReviewWindowSeconds": 259200
+    }
+  ]
+}
