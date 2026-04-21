@@ -10,6 +10,8 @@ import {
   getBackendFreshnessBanner,
   getBackendUnavailableAssessment,
   getDealFallbackAddress,
+  getMetadataTruthAssessment,
+  getTimelineTruthNote,
 } from "@/lib/backend";
 import {
   getDefaultEscrowAddress,
@@ -18,8 +20,6 @@ import {
 } from "@/lib/contracts/milestone-escrow";
 import { configuredChain } from "@/lib/chains";
 import { formatUsdc } from "@/lib/format";
-import { appEnv } from "@/lib/env";
-import { getDealMetadataUrl, loadAndVerifyDealMetadata } from "@/lib/metadata";
 import { getDealStatusLabel, getMilestoneStatusLabel } from "@/lib/status";
 import { DealActions } from "@/components/deal-actions";
 
@@ -27,14 +27,10 @@ type DealOverviewPageProps = {
   params: Promise<{
     address: string;
   }>;
-  searchParams: Promise<{
-    metadata?: string;
-  }>;
 };
 
-export default async function DealOverviewPage({ params, searchParams }: DealOverviewPageProps) {
+export default async function DealOverviewPage({ params }: DealOverviewPageProps) {
   const { address } = await params;
-  const { metadata } = await searchParams;
 
   const configuredDemoAddress = getDefaultEscrowAddress();
   const requestedAddress = (() => {
@@ -119,11 +115,8 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
     );
   }
 
-  const metadataUrl = getDealMetadataUrl(metadata ?? null, address === "demo-deal") ?? appEnv.defaultDealMetadataPath ?? null;
-  const verifiedMetadata = metadataUrl
-    ? await loadAndVerifyDealMetadata(metadataUrl, overview.metadataHash)
-    : null;
   const freshnessBanner = getBackendFreshnessBanner("deal", freshnessAssessment);
+  const metadataTruthAssessment = getMetadataTruthAssessment(backendOverview?.truth?.metadata);
 
   return (
     <section className="stack-lg">
@@ -193,25 +186,16 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
       <article className="panel stack-md">
         <div className="eyebrow">Metadata verification</div>
         <h2>Offchain terms</h2>
-
-        {verifiedMetadata ? (
-          verifiedMetadata.payload ? (
-            <div className="stack-sm">
-              <p className="status-text">
-                Verification status: {verifiedMetadata.verified ? "Verified" : "Hash mismatch"}
-              </p>
-              <p>Title: {String(verifiedMetadata.payload.title ?? "Not available")}</p>
-              <p>Summary: {String(verifiedMetadata.payload.summary ?? "Not available")}</p>
-              <p>Terms URL: {String(verifiedMetadata.payload.termsUrl ?? "Not available")}</p>
-            </div>
-          ) : (
-            <p className="status-text">Metadata load failed: {verifiedMetadata.error}</p>
-          )
-        ) : (
-          <p className="status-text">
-            Provide `?metadata=` in the URL or configure a default metadata path to verify offchain deal terms.
-          </p>
-        )}
+        <p className="status-text">Verification status: {metadataTruthAssessment.state}</p>
+        <p>{metadataTruthAssessment.message}</p>
+        {metadataTruthAssessment.detail ? (
+          <p className="status-text">Backend detail: {metadataTruthAssessment.detail}</p>
+        ) : null}
+        <ul className="plain-list stack-sm">
+          <li>Metadata URL: {metadataTruthAssessment.metadataUrl ?? "Not indexed"}</li>
+          <li>Payload present: {String(metadataTruthAssessment.payloadPresent ?? "unknown")}</li>
+          <li>Updated at block: {metadataTruthAssessment.updatedAtBlock ?? "Not available"}</li>
+        </ul>
       </article>
 
       <article className="panel stack-md">
@@ -224,6 +208,7 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
               <li key={`${entry.type}-${index}`}>
                 {entry.summary}
                 {entry.actor ? ` (${entry.actor.role}: ${entry.actor.address})` : ""}
+                {getTimelineTruthNote(entry.truth) ? ` — ${getTimelineTruthNote(entry.truth)}` : ""}
               </li>
             ))}
           </ul>

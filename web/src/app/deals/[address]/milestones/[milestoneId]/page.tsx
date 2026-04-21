@@ -6,12 +6,12 @@ import {
   getBackendFreshnessBanner,
   getBackendUnavailableAssessment,
   getDealFallbackAddress,
+  getHashContextAssessment,
+  getMilestoneMetadataVerificationAssessment,
 } from "@/lib/backend";
 import { normalizeAddress, readEscrowMilestone, readEscrowOverview } from "@/lib/contracts/milestone-escrow";
 import { configuredChain } from "@/lib/chains";
 import { formatTimestamp, formatUsdc } from "@/lib/format";
-import { appEnv } from "@/lib/env";
-import { getDealMetadataUrl, loadAndVerifyDealMetadata } from "@/lib/metadata";
 import { getMilestoneStatusLabel } from "@/lib/status";
 import { MilestoneActions } from "@/components/milestone-actions";
 
@@ -20,14 +20,10 @@ type MilestoneDetailPageProps = {
     address: string;
     milestoneId: string;
   }>;
-  searchParams: Promise<{
-    metadata?: string;
-  }>;
 };
 
-export default async function MilestoneDetailPage({ params, searchParams }: MilestoneDetailPageProps) {
+export default async function MilestoneDetailPage({ params }: MilestoneDetailPageProps) {
   const { address, milestoneId } = await params;
-  const { metadata } = await searchParams;
   const normalizedRouteAddress = getDealFallbackAddress(address);
   const escrowAddress = (() => {
     try {
@@ -114,16 +110,15 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
     );
   }
 
-  const metadataUrl = getDealMetadataUrl(metadata ?? null, false) ?? appEnv.defaultDealMetadataPath ?? null;
-  const verifiedMetadata = metadataUrl
-    ? await loadAndVerifyDealMetadata(metadataUrl, overview.metadataHash)
-    : null;
   const freshnessBanner = getBackendFreshnessBanner("milestone", freshnessAssessment);
-  const milestoneMetadata = Array.isArray(verifiedMetadata?.payload?.milestones)
-    ? verifiedMetadata.payload.milestones.find(
-        (item) => typeof item === "object" && item !== null && "id" in item && item.id === Number(parsedMilestoneId)
-      )
-    : null;
+  const metadataAssessment = getMilestoneMetadataVerificationAssessment(
+    backendMilestone?.truth?.metadataVerification
+  );
+  const evidenceAssessment = getHashContextAssessment(backendMilestone?.truth?.evidence, "evidence");
+  const disputeAssessment = getHashContextAssessment(
+    backendMilestone?.truth?.disputeContext,
+    "dispute"
+  );
 
   return (
     <section className="stack-lg">
@@ -179,25 +174,38 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
       <article className="panel stack-md">
         <div className="eyebrow">Metadata verification</div>
         <h2>Milestone terms</h2>
-
-        {verifiedMetadata ? (
-          verifiedMetadata.payload ? (
-            <div className="stack-sm">
-              <p className="status-text">
-                Verification status: {verifiedMetadata.verified ? "Verified" : "Hash mismatch"}
-              </p>
-              <p>Title: {String(backendMilestone?.metadata_title ?? (milestoneMetadata as { title?: string } | null)?.title ?? "Not available")}</p>
-              <p>
-                Description: {String(backendMilestone?.metadata_description ?? (milestoneMetadata as { description?: string } | null)?.description ?? "Not available")}
-              </p>
-            </div>
-          ) : (
-            <p className="status-text">Metadata load failed: {verifiedMetadata.error}</p>
-          )
-        ) : (
-          <p className="status-text">No metadata URL was provided for milestone verification.</p>
-        )}
+        <p className="status-text">Verification status: {metadataAssessment.state}</p>
+        <p>{metadataAssessment.message}</p>
+        {metadataAssessment.reason ? (
+          <p className="status-text">Backend detail: {metadataAssessment.reason}</p>
+        ) : null}
+        <ul className="plain-list stack-sm">
+          <li>Title verified: {String(metadataAssessment.titleVerified ?? "unknown")}</li>
+          <li>Description verified: {String(metadataAssessment.descriptionVerified ?? "unknown")}</li>
+        </ul>
       </article>
+
+      <section className="grid-two">
+        <article className="panel stack-md">
+          <h2>Evidence hash context</h2>
+          <p className="status-text">State: {evidenceAssessment.state}</p>
+          <p>{evidenceAssessment.message}</p>
+          {evidenceAssessment.hash ? <p>Hash: {evidenceAssessment.hash}</p> : null}
+          {evidenceAssessment.reason ? (
+            <p className="status-text">Backend detail: {evidenceAssessment.reason}</p>
+          ) : null}
+        </article>
+
+        <article className="panel stack-md">
+          <h2>Dispute hash context</h2>
+          <p className="status-text">State: {disputeAssessment.state}</p>
+          <p>{disputeAssessment.message}</p>
+          {disputeAssessment.hash ? <p>Hash: {disputeAssessment.hash}</p> : null}
+          {disputeAssessment.reason ? (
+            <p className="status-text">Backend detail: {disputeAssessment.reason}</p>
+          ) : null}
+        </article>
+      </section>
 
       <MilestoneActions
         milestone={milestone}

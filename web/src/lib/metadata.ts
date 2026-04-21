@@ -10,6 +10,9 @@ export type VerifiedDealMetadata = {
   error: string | null;
 };
 
+// NOTE: This helper is intentionally non-authoritative for user-facing truth surfaces.
+// Deal/milestone/dispute/profile pages must consume backend truth contracts from /escrows and /users APIs.
+// Keep this utility only for local tooling or future non-canonical preview workflows.
 export async function loadAndVerifyDealMetadata(
   metadataUrl: string,
   expectedHash: `0x${string}`

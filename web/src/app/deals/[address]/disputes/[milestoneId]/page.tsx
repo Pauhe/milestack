@@ -2,7 +2,12 @@ import {
   type BackendEscrowOverview,
   type BackendMilestone,
   fetchBackendJson,
+  getBackendFreshnessAssessment,
+  getBackendFreshnessBanner,
+  getBackendUnavailableAssessment,
   getDealFallbackAddress,
+  getHashContextAssessment,
+  getMilestoneMetadataVerificationAssessment,
 } from "@/lib/backend";
 import {
   normalizeAddress,
@@ -11,8 +16,6 @@ import {
 } from "@/lib/contracts/milestone-escrow";
 import { configuredChain } from "@/lib/chains";
 import { formatTimestamp, formatUsdc } from "@/lib/format";
-import { appEnv } from "@/lib/env";
-import { getDealMetadataUrl, loadAndVerifyDealMetadata } from "@/lib/metadata";
 import { getMilestoneStatusLabel } from "@/lib/status";
 import { DisputeResolutionForm } from "@/components/dispute-resolution-form";
 
@@ -21,14 +24,10 @@ type DisputePageProps = {
     address: string;
     milestoneId: string;
   }>;
-  searchParams: Promise<{
-    metadata?: string;
-  }>;
 };
 
-export default async function DisputePage({ params, searchParams }: DisputePageProps) {
+export default async function DisputePage({ params }: DisputePageProps) {
   const { address, milestoneId } = await params;
-  const { metadata } = await searchParams;
   const normalizedRouteAddress = getDealFallbackAddress(address);
   const escrowAddress = (() => {
     try {
@@ -66,6 +65,7 @@ export default async function DisputePage({ params, searchParams }: DisputePageP
     | null = null;
   let backendMilestone: BackendMilestone | null = null;
   let readError: string | null = null;
+  let freshnessAssessment = getBackendUnavailableAssessment("Backend freshness has not been loaded yet.");
 
   try {
     [overview, milestone, backendOverview, backendMilestone] = await Promise.all([
@@ -74,8 +74,13 @@ export default async function DisputePage({ params, searchParams }: DisputePageP
       fetchBackendJson<BackendEscrowOverview>(`/escrows/${escrowAddress}`),
       fetchBackendJson<BackendMilestone>(`/escrows/${escrowAddress}/milestones/${parsedMilestoneId.toString()}`),
     ]);
+
+    freshnessAssessment = getBackendFreshnessAssessment(
+      backendMilestone.freshness ?? backendOverview.freshness
+    );
   } catch (error) {
     readError = error instanceof Error ? error.message : "Unknown dispute read failure";
+    freshnessAssessment = getBackendUnavailableAssessment(error);
 
     try {
       [overview, milestone] = await Promise.all([
@@ -109,10 +114,15 @@ export default async function DisputePage({ params, searchParams }: DisputePageP
     );
   }
 
-  const metadataUrl = getDealMetadataUrl(metadata ?? null, false) ?? appEnv.defaultDealMetadataPath ?? null;
-  const verifiedMetadata = metadataUrl
-    ? await loadAndVerifyDealMetadata(metadataUrl, overview.metadataHash)
-    : null;
+  const freshnessBanner = getBackendFreshnessBanner("milestone", freshnessAssessment);
+  const metadataAssessment = getMilestoneMetadataVerificationAssessment(
+    backendMilestone?.truth?.metadataVerification
+  );
+  const evidenceAssessment = getHashContextAssessment(backendMilestone?.truth?.evidence, "evidence");
+  const disputeAssessment = getHashContextAssessment(
+    backendMilestone?.truth?.disputeContext,
+    "dispute"
+  );
 
   return (
     <section className="stack-lg">
@@ -122,9 +132,20 @@ export default async function DisputePage({ params, searchParams }: DisputePageP
           Deal {escrowAddress}, disputed milestone {parsedMilestoneId.toString()}
         </h1>
         <p>
-          Live dispute state is loading directly from the escrow contract on {configuredChain.name}.
+          Primary dispute values are loaded live from the escrow contract on {configuredChain.name}.
+          Evidence/dispute interpretation and metadata verification come from backend truth labels.
         </p>
       </div>
+
+      {freshnessBanner ? (
+        <article className="panel stack-sm" data-testid="backend-freshness-banner">
+          <h2>{freshnessBanner.title}</h2>
+          <p>{freshnessBanner.body}</p>
+          {freshnessAssessment.error ? (
+            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
+          ) : null}
+        </article>
+      ) : null}
 
       <section className="grid-two">
         <article className="panel stack-md">
@@ -149,26 +170,42 @@ export default async function DisputePage({ params, searchParams }: DisputePageP
         </article>
       </section>
 
-      <article className="panel stack-md">
-        <div className="eyebrow">Metadata verification</div>
-        <h2>Submission and dispute references</h2>
+      <section className="grid-two">
+        <article className="panel stack-md">
+          <div className="eyebrow">Metadata verification</div>
+          <h2>Submission metadata truth</h2>
+          <p className="status-text">Verification status: {metadataAssessment.state}</p>
+          <p>{metadataAssessment.message}</p>
+          {metadataAssessment.reason ? (
+            <p className="status-text">Backend detail: {metadataAssessment.reason}</p>
+          ) : null}
+          <ul className="plain-list stack-sm">
+            <li>Title verified: {String(metadataAssessment.titleVerified ?? "unknown")}</li>
+            <li>Description verified: {String(metadataAssessment.descriptionVerified ?? "unknown")}</li>
+          </ul>
+        </article>
 
-        {verifiedMetadata ? (
-          verifiedMetadata.payload ? (
-            <div className="stack-sm">
-              <p className="status-text">
-                Verification status: {verifiedMetadata.verified ? "Verified" : "Hash mismatch"}
-              </p>
-              <p>Deal title: {String(verifiedMetadata.payload.title ?? "Not available")}</p>
-              <p>Terms URL: {String(verifiedMetadata.payload.termsUrl ?? "Not available")}</p>
-            </div>
-          ) : (
-            <p className="status-text">Metadata load failed: {verifiedMetadata.error}</p>
-          )
-        ) : (
-          <p className="status-text">No metadata URL was provided for dispute verification.</p>
-        )}
-      </article>
+        <article className="panel stack-md">
+          <div className="eyebrow">Hash context truth</div>
+          <h2>Evidence + dispute references</h2>
+          <ul className="plain-list stack-sm">
+            <li>
+              Evidence: {evidenceAssessment.state} — {evidenceAssessment.message}
+            </li>
+            <li>
+              Dispute: {disputeAssessment.state} — {disputeAssessment.message}
+            </li>
+            <li>Evidence hash: {evidenceAssessment.hash ?? "None"}</li>
+            <li>Dispute hash: {disputeAssessment.hash ?? "None"}</li>
+          </ul>
+          {evidenceAssessment.reason ? (
+            <p className="status-text">Evidence detail: {evidenceAssessment.reason}</p>
+          ) : null}
+          {disputeAssessment.reason ? (
+            <p className="status-text">Dispute detail: {disputeAssessment.reason}</p>
+          ) : null}
+        </article>
+      </section>
 
       <DisputeResolutionForm
         milestone={milestone}

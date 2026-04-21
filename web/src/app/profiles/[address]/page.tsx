@@ -7,6 +7,7 @@ import {
   getBackendFreshnessBanner,
   getBackendUnavailableAssessment,
   getProfileFallbackAddress,
+  getReputationTruthAssessment,
 } from "@/lib/backend";
 
 type ProfilePageProps = {
@@ -32,6 +33,7 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   }
 
   const freshnessBanner = getBackendFreshnessBanner("profile", freshnessAssessment);
+  const truthAssessment = getReputationTruthAssessment(profile?.truth);
 
   return (
     <section className="stack-lg">
@@ -52,6 +54,13 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
           ) : null}
         </article>
       ) : null}
+
+      <article className="panel stack-md">
+        <div className="eyebrow">Reputation truth contract</div>
+        <h2>Canonical interpretation</h2>
+        <p className="status-text">State: {truthAssessment.state}</p>
+        <p>{truthAssessment.message}</p>
+      </article>
 
       <section className="grid-two">
         <article className="panel stack-md">
