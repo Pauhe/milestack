@@ -2,6 +2,9 @@ import {
   type BackendEscrowOverview,
   type BackendMilestone,
   fetchBackendJson,
+  getBackendFreshnessAssessment,
+  getBackendFreshnessBanner,
+  getBackendUnavailableAssessment,
   getDealFallbackAddress,
 } from "@/lib/backend";
 import { normalizeAddress, readEscrowMilestone, readEscrowOverview } from "@/lib/contracts/milestone-escrow";
@@ -62,6 +65,7 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
     | null = null;
   let backendMilestone: BackendMilestone | null = null;
   let readError: string | null = null;
+  let freshnessAssessment = getBackendUnavailableAssessment("Backend freshness has not been loaded yet.");
 
   try {
     [overview, milestone, backendOverview, backendMilestone] = await Promise.all([
@@ -70,8 +74,13 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
       fetchBackendJson<BackendEscrowOverview>(`/escrows/${escrowAddress}`),
       fetchBackendJson<BackendMilestone>(`/escrows/${escrowAddress}/milestones/${parsedMilestoneId.toString()}`),
     ]);
+
+    freshnessAssessment = getBackendFreshnessAssessment(
+      backendMilestone.freshness ?? backendOverview.freshness
+    );
   } catch (error) {
     readError = error instanceof Error ? error.message : "Unknown milestone read failure";
+    freshnessAssessment = getBackendUnavailableAssessment(error);
 
     try {
       [overview, milestone] = await Promise.all([
@@ -109,6 +118,7 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
   const verifiedMetadata = metadataUrl
     ? await loadAndVerifyDealMetadata(metadataUrl, overview.metadataHash)
     : null;
+  const freshnessBanner = getBackendFreshnessBanner("milestone", freshnessAssessment);
   const milestoneMetadata = Array.isArray(verifiedMetadata?.payload?.milestones)
     ? verifiedMetadata.payload.milestones.find(
         (item) => typeof item === "object" && item !== null && "id" in item && item.id === Number(parsedMilestoneId)
@@ -123,9 +133,20 @@ export default async function MilestoneDetailPage({ params, searchParams }: Mile
           Deal {escrowAddress}, milestone {parsedMilestoneId.toString()}
         </h1>
         <p>
-          Live milestone state is loading directly from the escrow contract on {configuredChain.name}.
+          Primary milestone values are loaded live from the escrow contract on {configuredChain.name}.
+          Backend metadata and derived eligibility can be stale during indexing lag.
         </p>
       </div>
+
+      {freshnessBanner ? (
+        <article className="panel stack-sm" data-testid="backend-freshness-banner">
+          <h2>{freshnessBanner.title}</h2>
+          <p>{freshnessBanner.body}</p>
+          {freshnessAssessment.error ? (
+            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
+          ) : null}
+        </article>
+      ) : null}
 
       <section className="grid-two">
         <article className="panel stack-md">

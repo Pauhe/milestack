@@ -2,9 +2,13 @@ import { type Address } from "viem";
 
 import {
   type BackendEscrowOverview,
+  type BackendItemsResponse,
   type BackendMilestone,
   type BackendTimelineEntry,
   fetchBackendJson,
+  getBackendFreshnessAssessment,
+  getBackendFreshnessBanner,
+  getBackendUnavailableAssessment,
   getDealFallbackAddress,
 } from "@/lib/backend";
 import {
@@ -66,16 +70,27 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
   let backendMilestones: BackendMilestone[] = [];
   let backendTimeline: BackendTimelineEntry[] = [];
   let readError: string | null = null;
+  let freshnessAssessment = getBackendUnavailableAssessment("Backend freshness has not been loaded yet.");
 
   try {
-    [overview, backendOverview, { items: backendMilestones }, { items: backendTimeline }] = await Promise.all([
+    const [chainOverview, overviewResponse, milestonesResponse, timelineResponse] = await Promise.all([
       readEscrowOverview(requestedAddress as Address),
       fetchBackendJson<BackendEscrowOverview>(`/escrows/${requestedAddress}`),
-      fetchBackendJson<{ items: BackendMilestone[] }>(`/escrows/${requestedAddress}/milestones`),
-      fetchBackendJson<{ items: BackendTimelineEntry[] }>(`/escrows/${requestedAddress}/timeline`),
+      fetchBackendJson<BackendItemsResponse<BackendMilestone>>(`/escrows/${requestedAddress}/milestones`),
+      fetchBackendJson<BackendItemsResponse<BackendTimelineEntry>>(`/escrows/${requestedAddress}/timeline`),
     ]);
+
+    overview = chainOverview;
+    backendOverview = overviewResponse;
+    backendMilestones = milestonesResponse.items;
+    backendTimeline = timelineResponse.items;
+
+    freshnessAssessment = getBackendFreshnessAssessment(
+      overviewResponse.freshness ?? milestonesResponse.freshness ?? timelineResponse.freshness
+    );
   } catch (error) {
     readError = error instanceof Error ? error.message : "Unknown contract read failure";
+    freshnessAssessment = getBackendUnavailableAssessment(error);
 
     try {
       overview = await readEscrowOverview(requestedAddress as Address);
@@ -108,6 +123,7 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
   const verifiedMetadata = metadataUrl
     ? await loadAndVerifyDealMetadata(metadataUrl, overview.metadataHash)
     : null;
+  const freshnessBanner = getBackendFreshnessBanner("deal", freshnessAssessment);
 
   return (
     <section className="stack-lg">
@@ -115,10 +131,20 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
         <div className="eyebrow">Deal Overview</div>
         <h1>{overview.address}</h1>
         <p>
-          Live escrow data is loading directly from the contract on {configuredChain.name}. This
-          page is now ready for real contract-aware UI work.
+          Primary escrow fields are read live from the contract on {configuredChain.name}. Timeline
+          and milestone summaries are backend-derived indexed views.
         </p>
       </div>
+
+      {freshnessBanner ? (
+        <article className="panel stack-sm" data-testid="backend-freshness-banner">
+          <h2>{freshnessBanner.title}</h2>
+          <p>{freshnessBanner.body}</p>
+          {freshnessAssessment.error ? (
+            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
+          ) : null}
+        </article>
+      ) : null}
 
       <section className="grid-two">
         <article className="panel stack-md">
@@ -149,7 +175,7 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
         </article>
 
         <article className="panel stack-md">
-          <h2>Milestone list</h2>
+          <h2>Milestone list (backend indexed)</h2>
           {backendMilestones.length > 0 ? (
             <ul className="plain-list stack-sm">
               {backendMilestones.map((milestone) => (
@@ -190,7 +216,7 @@ export default async function DealOverviewPage({ params, searchParams }: DealOve
 
       <article className="panel stack-md">
         <div className="eyebrow">Timeline</div>
-        <h2>Indexed event history</h2>
+        <h2>Indexed event history (backend derived)</h2>
 
         {backendTimeline.length > 0 ? (
           <ul className="plain-list stack-sm">

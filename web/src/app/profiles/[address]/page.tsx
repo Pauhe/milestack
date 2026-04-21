@@ -1,6 +1,13 @@
 import { getAddress } from "viem";
 
-import { fetchBackendJson, getProfileFallbackAddress } from "@/lib/backend";
+import {
+  type BackendReputation,
+  fetchBackendJson,
+  getBackendFreshnessAssessment,
+  getBackendFreshnessBanner,
+  getBackendUnavailableAssessment,
+  getProfileFallbackAddress,
+} from "@/lib/backend";
 
 type ProfilePageProps = {
   params: Promise<{
@@ -12,21 +19,19 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
   const { address } = await params;
   const requestedAddress = getProfileFallbackAddress(address);
 
-  let profile:
-    | {
-        address: string;
-        buyerStats: Record<string, unknown> | null;
-        sellerStats: Record<string, unknown> | null;
-        arbiterStats: Record<string, unknown> | null;
-      }
-    | null = null;
+  let profile: BackendReputation | null = null;
   let readError: string | null = null;
+  let freshnessAssessment = getBackendUnavailableAssessment("Backend freshness has not been loaded yet.");
 
   try {
-    profile = await fetchBackendJson(`/users/${getAddress(requestedAddress)}/reputation`);
+    profile = await fetchBackendJson<BackendReputation>(`/users/${getAddress(requestedAddress)}/reputation`);
+    freshnessAssessment = getBackendFreshnessAssessment(profile.freshness);
   } catch (error) {
     readError = error instanceof Error ? error.message : "Unknown backend reputation failure";
+    freshnessAssessment = getBackendUnavailableAssessment(error);
   }
+
+  const freshnessBanner = getBackendFreshnessBanner("profile", freshnessAssessment);
 
   return (
     <section className="stack-lg">
@@ -34,9 +39,19 @@ export default async function ProfilePage({ params }: ProfilePageProps) {
         <div className="eyebrow">Reputation Profile</div>
         <h1>{requestedAddress}</h1>
         <p>
-          This profile is now backed by the backend reputation view when indexed data is available.
+          Reputation aggregates are backend-derived indexed views. They are not direct live contract reads.
         </p>
       </div>
+
+      {freshnessBanner ? (
+        <article className="panel stack-sm" data-testid="backend-freshness-banner">
+          <h2>{freshnessBanner.title}</h2>
+          <p>{freshnessBanner.body}</p>
+          {freshnessAssessment.error ? (
+            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
+          ) : null}
+        </article>
+      ) : null}
 
       <section className="grid-two">
         <article className="panel stack-md">
