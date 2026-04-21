@@ -4,6 +4,12 @@
 
 This document translates the product spec into an implementation-oriented architecture for Milestack's MVP.
 
+Launch-truth companion references:
+- `.gsd/milestones/M001/slices/S03/architecture-interface-reconciliation.md` is the canonical cross-layer semantics reconciliation for conceptual-vs-durable status meaning and timeline interpretation caveats.
+- `.gsd/milestones/M001/slices/S02/canonical-launch-boundary.md` defines first-launch scope boundaries and non-goals.
+
+If this architecture guide and those artifacts diverge on launch semantics, treat the S02/S03 artifacts as authoritative until a documented update is made.
+
 The MVP goal is to deliver a secure, minimal, non-custodial milestone escrow system for digital work with:
 - milestone funding in USDC
 - seller submission of evidence
@@ -209,31 +215,34 @@ Suggested onchain layout by concern:
 - totalReleasedToSeller
 - totalRefundedToBuyer
 
-Suggested milestone status enum:
+Suggested milestone status enum (launch-runtime oriented):
 - `PendingFunding`
 - `Funded`
 - `Submitted`
-- `Approved`
-- `Claimable`
+- `Approved` (transient execution step before payout finalization)
 - `Disputed`
-- `Resolved`
 - `PaidOut`
 - `Refunded`
 - `Cancelled`
 
+Conceptual labels used in product explanations:
+- `Claimable` is an eligibility concept (for example seller timeout eligibility), not currently a guaranteed durable stored state.
+- `Resolved` is a conceptual dispute phase; runtime outcomes are represented as `PaidOut` or `Refunded`.
+
 ### 4.5 State transition rules
 
-Allowed transitions:
+Allowed runtime transitions:
 
 1. `PendingFunding -> Funded`
 2. `Funded -> Submitted`
 3. `Submitted -> Approved`
-4. `Approved -> PaidOut`
-5. `Submitted -> Claimable` after review deadline if undisputed
-6. `Claimable -> PaidOut`
-7. `Submitted -> Disputed` before deadline
-8. `Disputed -> Resolved`
-9. `Resolved -> PaidOut` or `Resolved -> Refunded` depending on allocation
+4. `Approved -> PaidOut` (approval path finalizes payout in the same call flow)
+5. `Submitted -> Disputed` before deadline
+6. `Disputed -> PaidOut` or `Disputed -> Refunded` depending on arbiter allocation
+
+Conceptual lifecycle guidance (not durable transition guarantees):
+- `Submitted -> Claimable -> PaidOut` can be used as UX shorthand for the seller-timeout path.
+- `Disputed -> Resolved -> PaidOut/Refunded` can be used as conceptual dispute-phase narration.
 
 Critical invariants:
 - disputed milestones cannot be claimed by timeout
@@ -330,12 +339,15 @@ Suggested events:
 - `MilestoneFunded(milestoneId, amount)`
 - `MilestoneSubmitted(milestoneId, evidenceHash, submittedAt, reviewDeadline)`
 - `MilestoneApproved(milestoneId)`
-- `MilestoneClaimable(milestoneId)`
 - `MilestoneClaimed(milestoneId, sellerAmount, feeAmount)`
 - `MilestoneDisputed(milestoneId, disputeHash)`
 - `DisputeResolved(milestoneId, buyerAmount, sellerAmount)`
 - `MilestoneCancelled(milestoneId)`
 - `DealCompleted()`
+
+Event interpretation caveat:
+- `MilestoneClaimed` represents seller payout finalization but may originate from either buyer approval or seller timeout claim flows; indexer and UI narration should derive the cause from surrounding context instead of assuming timeout by event name alone.
+- `MilestoneClaimable` can be kept as a conceptual/future event name, but should not be treated as emitted launch-runtime truth unless wired end-to-end.
 
 Recommended event design rules:
 - every state transition that matters to the UI should have a dedicated event
@@ -602,7 +614,13 @@ Recommended additional endpoint:
 Suggested response shape principles:
 - return both raw chain-derived state and UI-friendly derived fields
 - include role-aware action hints where cheap to compute
+- expose deadline- and dispute-aware eligibility semantics (for example timeout claimability and blocked reasons) as a derived read model owned by the backend
 - treat backend data as a convenience layer, not the source of settlement truth
+
+Ownership rule for launch semantics:
+- contracts own settlement truth;
+- backend owns the derived read model;
+- frontend should consume and explain those derived semantics instead of inventing parallel lifecycle logic.
 
 Later additions:
 - signed metadata upload endpoints
