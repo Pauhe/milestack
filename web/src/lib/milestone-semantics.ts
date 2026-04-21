@@ -7,7 +7,7 @@ export type MilestoneSemanticsInput = {
   status: number;
   milestoneId: number;
   currentMilestoneIndex: number;
-  activeDisputeMilestoneId?: number | null;
+  activeDisputeMilestoneId?: string | number | bigint | null;
   reviewDeadline?: string | number | bigint | null;
   derived?: BackendMilestone["derived"] | null;
   nowUnixSeconds?: number;
@@ -43,6 +43,13 @@ function toUnixSeconds(value: string | number | bigint | null | undefined): numb
   return Number.isFinite(value) ? value : null;
 }
 
+function toOptionalNonNegativeInteger(value: string | number | bigint | null | undefined): number | null {
+  const parsed = toUnixSeconds(value);
+  if (parsed === null) return null;
+  if (!Number.isInteger(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
 export function getMilestoneStatusSemanticLabel(status: number): string {
   switch (status) {
     case 0:
@@ -73,6 +80,8 @@ export function getMilestoneStatusSemanticLabel(status: number): string {
 export function deriveMilestoneActionSemantics(input: MilestoneSemanticsInput): MilestoneActionSemantics {
   const nowUnixSeconds = input.nowUnixSeconds ?? Math.floor(Date.now() / 1000);
   const reviewDeadline = toUnixSeconds(input.reviewDeadline);
+  const parsedActiveDisputeMilestoneId = toOptionalNonNegativeInteger(input.activeDisputeMilestoneId);
+  const hasExplicitDisputeContext = input.activeDisputeMilestoneId !== null && input.activeDisputeMilestoneId !== undefined;
   const isCurrent = input.derived?.isCurrent ?? input.milestoneId === input.currentMilestoneIndex;
   const isBlockedByDispute = input.derived?.isBlocked ?? false;
 
@@ -87,9 +96,7 @@ export function deriveMilestoneActionSemantics(input: MilestoneSemanticsInput): 
   const canResolveDispute = input.role === "arbiter"
     && isDisputed
     && isCurrent
-    && (input.activeDisputeMilestoneId === null
-      || input.activeDisputeMilestoneId === undefined
-      || input.activeDisputeMilestoneId === input.milestoneId);
+    && (!hasExplicitDisputeContext || parsedActiveDisputeMilestoneId === input.milestoneId);
 
   const hasAction = [canFund, canSubmit, canApprove, canDispute, canClaimAfterTimeout, canResolveDispute].some(Boolean);
 

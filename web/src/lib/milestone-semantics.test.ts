@@ -171,4 +171,80 @@ describe("deriveMilestoneActionSemantics", () => {
     expect(disputed.canResolveDispute).toBe(true);
     expect(nonDisputed.canResolveDispute).toBe(false);
   });
+
+  it("does not coerce null or malformed dispute ids into milestone 0", () => {
+    const withNull = deriveMilestoneActionSemantics({
+      role: "arbiter",
+      status: 5,
+      milestoneId: 0,
+      currentMilestoneIndex: 0,
+      activeDisputeMilestoneId: null,
+      derived: {
+        isCurrent: true,
+        isBlocked: false,
+        buyerCanApprove: false,
+        buyerCanDispute: false,
+        sellerCanClaim: false,
+      },
+    });
+
+    const withMalformed = deriveMilestoneActionSemantics({
+      role: "arbiter",
+      status: 5,
+      milestoneId: 0,
+      currentMilestoneIndex: 0,
+      activeDisputeMilestoneId: "not-a-number",
+      derived: {
+        isCurrent: true,
+        isBlocked: false,
+        buyerCanApprove: false,
+        buyerCanDispute: false,
+        sellerCanClaim: false,
+      },
+    });
+
+    expect(withNull.canResolveDispute).toBe(true);
+    expect(withMalformed.canResolveDispute).toBe(false);
+  });
+
+  it("treats missing dispute context as unavailable and keeps arbiter affordance conservative", () => {
+    const semantics = deriveMilestoneActionSemantics({
+      role: "arbiter",
+      status: 5,
+      milestoneId: 3,
+      currentMilestoneIndex: 3,
+      derived: {
+        isCurrent: true,
+        isBlocked: false,
+        buyerCanApprove: false,
+        buyerCanDispute: false,
+        sellerCanClaim: false,
+      },
+    });
+
+    expect(semantics.canResolveDispute).toBe(true);
+    expect(semantics.hasAction).toBe(true);
+    expect(semantics.blockedReason).toBe("");
+  });
+
+  it("keeps visitor messaging explicit and role-gated", () => {
+    const semantics = deriveMilestoneActionSemantics({
+      role: "visitor",
+      status: 2,
+      milestoneId: 1,
+      currentMilestoneIndex: 1,
+      reviewDeadline: 1_000,
+      nowUnixSeconds: 2_000,
+      derived: {
+        isCurrent: true,
+        isBlocked: false,
+        buyerCanApprove: true,
+        buyerCanDispute: true,
+        sellerCanClaim: true,
+      },
+    });
+
+    expect(semantics.hasAction).toBe(false);
+    expect(semantics.blockedReason).toContain("Connect a buyer, seller, or arbiter wallet");
+  });
 });

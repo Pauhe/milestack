@@ -39,6 +39,27 @@ test("deriveMilestoneSemantics blocks unknown status, zero deadline, and non-cur
   assert.equal(nonCurrent.buyerApprovalBlockedReason, "Milestone is not current");
 });
 
+test("deriveMilestoneSemantics keeps deadline boundary inclusive and null dispute id non-blocking", () => {
+  const milestone = { milestone_id: 1, status: 2, review_deadline: "200" };
+
+  const atBoundary = deriveMilestoneSemantics(milestone, {
+    current_milestone_index: 1,
+    active_dispute_milestone_id: null,
+  }, 200);
+  assert.equal(atBoundary.reviewWindowOpen, true);
+  assert.equal(atBoundary.reviewWindowElapsed, false);
+  assert.equal(atBoundary.buyerCanApprove, true);
+  assert.equal(atBoundary.sellerCanClaim, false);
+
+  const malformedDispute = deriveMilestoneSemantics(milestone, {
+    current_milestone_index: 1,
+    active_dispute_milestone_id: "not-a-number",
+  }, 200);
+  assert.equal(malformedDispute.disputeBlocksCurrentMilestone, false);
+  assert.equal(malformedDispute.buyerCanApprove, true);
+  assert.equal(malformedDispute.sellerCanClaim, false);
+});
+
 test("deriveMilestoneSemantics treats active disputes as non-actionable regardless of deadline", () => {
   const disputedEscrow = {
     current_milestone_index: 1,

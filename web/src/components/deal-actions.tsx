@@ -69,7 +69,7 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
             status: currentMilestoneStatus,
             milestoneId: currentMilestoneId,
             currentMilestoneIndex: Number(overview.currentMilestoneIndex),
-            activeDisputeMilestoneId: Number(overview.activeDisputeMilestoneId),
+            activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
             derived: backendMilestoneDerived,
             reviewDeadline: backendReviewDeadline ?? overview.currentMilestone?.reviewDeadline,
           }),

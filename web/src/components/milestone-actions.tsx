@@ -73,7 +73,7 @@ export function MilestoneActions({
         status: milestone.status,
         milestoneId: Number(milestoneId),
         currentMilestoneIndex: Number(overview.currentMilestoneIndex),
-        activeDisputeMilestoneId: Number(overview.activeDisputeMilestoneId),
+        activeDisputeMilestoneId: overview.activeDisputeMilestoneId,
         derived: backendDerived,
         reviewDeadline: backendReviewDeadline ?? milestone.reviewDeadline,
       }),

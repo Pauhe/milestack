@@ -157,7 +157,8 @@ export type BackendEscrowOverview = {
   total_fees_collected: string;
   derived?: {
     isBlockedByDispute: boolean;
-    nextActionableMilestoneId: number;
+    activeDisputeMilestoneId: number | null;
+    nextActionableMilestoneId: number | null;
   };
   truth?: BackendEscrowTruth;
   freshness?: BackendFreshnessPayload | null;
