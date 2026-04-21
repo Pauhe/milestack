@@ -3,11 +3,6 @@ name: Slither
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
-permissions:
-  actions: read
-  contents: read
-  security-events: write
-
 on:
   push:
     paths:
@@ -30,14 +25,5 @@ jobs:
         uses: crytic/slither-action@v0.4.1
         with:
           target: contracts
-          sarif: contracts/slither-report.sarif
           slither-args: --filter-paths "contracts/lib|contracts/test" --exclude naming-convention,timestamp,incorrect-equality,uninitialized-local
           fail-on: medium
-
-      - name: Upload Slither SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v4
-        continue-on-error: true
-        with:
-          sarif_file: contracts/slither-report.sarif
-          category: slither
