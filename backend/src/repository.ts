@@ -35,6 +35,17 @@ export type MilestoneRow = {
   metadata_description: string | null;
 };
 
+export type EventRow = {
+  chain_id: number;
+  block_number: string;
+  tx_hash: string;
+  log_index: string;
+  escrow_address: string;
+  event_name: string;
+  summary: string;
+  payload_json: string;
+};
+
 export function upsertEscrow(input: {
   address: string;
   buyerAddress: string;
@@ -181,8 +192,9 @@ export function insertEvent(input: {
   summary: string;
   payloadJson: string;
 }) {
-  db.prepare(
-    `
+  const result = db
+    .prepare(
+      `
       INSERT OR IGNORE INTO events (
         chain_id,
         block_number,
@@ -194,16 +206,19 @@ export function insertEvent(input: {
         payload_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `
-  ).run(
-    input.chainId,
-    input.blockNumber,
-    input.txHash,
-    input.logIndex,
-    input.escrowAddress.toLowerCase(),
-    input.eventName,
-    input.summary,
-    input.payloadJson
-  );
+    )
+    .run(
+      input.chainId,
+      input.blockNumber,
+      input.txHash,
+      input.logIndex,
+      input.escrowAddress.toLowerCase(),
+      input.eventName,
+      input.summary,
+      input.payloadJson
+    );
+
+  return result.changes === 1;
 }
 
 export function getEscrow(address: string) {
@@ -260,6 +275,34 @@ export function getEscrowParticipants(address: string) {
 
 export function listKnownEscrows(): string[] {
   return db.prepare("SELECT address FROM escrows").all().map((row) => (row as { address: string }).address);
+}
+
+export function listAllEvents() {
+  return db
+    .prepare(
+      `
+        SELECT * FROM events
+        ORDER BY CAST(block_number AS INTEGER) ASC, CAST(log_index AS INTEGER) ASC
+      `
+    )
+    .all() as EventRow[];
+}
+
+export function getEventCount() {
+  const row = db.prepare("SELECT COUNT(*) AS count FROM events").get() as { count: number };
+  return row.count;
+}
+
+export function clearDerivedReadModels() {
+  db.exec(`
+    DELETE FROM milestones;
+    DELETE FROM escrows;
+    DELETE FROM user_role_stats;
+  `);
+}
+
+export function clearMetadataCache() {
+  db.exec("DELETE FROM metadata_cache;");
 }
 
 export function upsertUserRoleStats(input: {
@@ -365,5 +408,25 @@ export function upsertMetadataCache(input: {
 }
 
 export function getMetadataCache(metadataHash: string) {
-  return db.prepare("SELECT * FROM metadata_cache WHERE metadata_hash = ?").get(metadataHash);
+  return db.prepare("SELECT * FROM metadata_cache WHERE metadata_hash = ?").get(metadataHash) as
+    | {
+        metadata_hash: string;
+        metadata_url: string;
+        verified: number;
+        payload_json: string | null;
+        error: string | null;
+        updated_at_block: string;
+      }
+    | undefined;
+}
+
+export function listMetadataCache() {
+  return db.prepare("SELECT * FROM metadata_cache").all() as Array<{
+    metadata_hash: string;
+    metadata_url: string;
+    verified: number;
+    payload_json: string | null;
+    error: string | null;
+    updated_at_block: string;
+  }>;
 }

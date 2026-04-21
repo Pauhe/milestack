@@ -1,6 +1,27 @@
 import { db } from "./db.js";
 import { upsertUserRoleStats } from "./repository.js";
 
+type NormalizedMilestoneLike = {
+  escrowAddress: string;
+  status: number;
+  disputeHash: string;
+  buyerAward: bigint;
+  sellerAward: bigint;
+};
+
+type NormalizedEscrowLike = {
+  address: string;
+  buyerAddress: string;
+  sellerAddress: string;
+  dealStatus: number;
+  totalReleasedToSeller: bigint;
+  totalRefundedToBuyer: bigint;
+};
+
+const ZERO_HASH = "0x0000000000000000000000000000000000000000000000000000000000000000";
+const DEAL_STATUS_COMPLETED = 2;
+const MILESTONE_STATUS_PAID_OUT = 7;
+
 export function recomputeUserRoleStats(updatedAtBlock: string) {
   const completedBuyerRows = db
     .prepare(
@@ -66,7 +87,7 @@ export function recomputeUserRoleStats(updatedAtBlock: string) {
         GROUP BY e.buyer_address
       `
     )
-    .all(zeroHash) as Array<{ address: string; count: number }>;
+    .all(ZERO_HASH) as Array<{ address: string; count: number }>;
 
   const sellerDisputeWinRows = db
     .prepare(
@@ -107,6 +128,107 @@ export function recomputeUserRoleStats(updatedAtBlock: string) {
       cancellationCount: 0,
       totalVolume: item.totalVolume.toString(),
       updatedAtBlock,
+    });
+  }
+}
+
+export function recomputeUserRoleStatsFromReadModels(input: {
+  escrows: NormalizedEscrowLike[];
+  milestones: NormalizedMilestoneLike[];
+  updatedAtBlock: string;
+}) {
+  const escrowsByAddress = new Map(input.escrows.map((item) => [item.address.toLowerCase(), item]));
+
+  const buyerStats = new Map<string, { completedDeals: number; disputeCount: number; totalVolume: bigint }>();
+  const sellerStats = new Map<string, { completedDeals: number; completedMilestones: number; disputeWins: number; totalVolume: bigint }>();
+
+  for (const escrow of input.escrows) {
+    const buyerAddress = escrow.buyerAddress.toLowerCase();
+    const sellerAddress = escrow.sellerAddress.toLowerCase();
+
+    const buyer = buyerStats.get(buyerAddress) ?? { completedDeals: 0, disputeCount: 0, totalVolume: 0n };
+    const seller = sellerStats.get(sellerAddress) ?? {
+      completedDeals: 0,
+      completedMilestones: 0,
+      disputeWins: 0,
+      totalVolume: 0n,
+    };
+
+    buyer.totalVolume += escrow.totalRefundedToBuyer;
+    seller.totalVolume += escrow.totalReleasedToSeller;
+
+    if (escrow.dealStatus === DEAL_STATUS_COMPLETED) {
+      buyer.completedDeals += 1;
+      seller.completedDeals += 1;
+    }
+
+    buyerStats.set(buyerAddress, buyer);
+    sellerStats.set(sellerAddress, seller);
+  }
+
+  for (const milestone of input.milestones) {
+    const escrow = escrowsByAddress.get(milestone.escrowAddress.toLowerCase());
+    if (!escrow) {
+      continue;
+    }
+
+    const buyerAddress = escrow.buyerAddress.toLowerCase();
+    const sellerAddress = escrow.sellerAddress.toLowerCase();
+
+    if (milestone.status === MILESTONE_STATUS_PAID_OUT) {
+      const seller = sellerStats.get(sellerAddress) ?? {
+        completedDeals: 0,
+        completedMilestones: 0,
+        disputeWins: 0,
+        totalVolume: 0n,
+      };
+      seller.completedMilestones += 1;
+      sellerStats.set(sellerAddress, seller);
+    }
+
+    if (milestone.disputeHash.toLowerCase() !== ZERO_HASH) {
+      const buyer = buyerStats.get(buyerAddress) ?? { completedDeals: 0, disputeCount: 0, totalVolume: 0n };
+      buyer.disputeCount += 1;
+      buyerStats.set(buyerAddress, buyer);
+    }
+
+    if (milestone.sellerAward > milestone.buyerAward) {
+      const seller = sellerStats.get(sellerAddress) ?? {
+        completedDeals: 0,
+        completedMilestones: 0,
+        disputeWins: 0,
+        totalVolume: 0n,
+      };
+      seller.disputeWins += 1;
+      sellerStats.set(sellerAddress, seller);
+    }
+  }
+
+  for (const [address, stats] of buyerStats.entries()) {
+    upsertUserRoleStats({
+      address,
+      role: "buyer",
+      completedDealsCount: stats.completedDeals,
+      completedMilestonesCount: 0,
+      disputeCount: stats.disputeCount,
+      disputeWinsCount: 0,
+      cancellationCount: 0,
+      totalVolume: stats.totalVolume.toString(),
+      updatedAtBlock: input.updatedAtBlock,
+    });
+  }
+
+  for (const [address, stats] of sellerStats.entries()) {
+    upsertUserRoleStats({
+      address,
+      role: "seller",
+      completedDealsCount: stats.completedDeals,
+      completedMilestonesCount: stats.completedMilestones,
+      disputeCount: 0,
+      disputeWinsCount: stats.disputeWins,
+      cancellationCount: 0,
+      totalVolume: stats.totalVolume.toString(),
+      updatedAtBlock: input.updatedAtBlock,
     });
   }
 }
@@ -193,5 +315,3 @@ function mergeSellerStats(
 
   return [...map.values()];
 }
-
-const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";

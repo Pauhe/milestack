@@ -89,20 +89,133 @@ db.exec(`
   );
 `);
 
-export function getLastSyncedBlock() {
-  const row = db
-    .prepare("SELECT value FROM sync_state WHERE key = 'last_synced_block'")
-    .get() as { value?: string } | undefined;
+export type SyncPhase =
+  | "idle"
+  | "discover_logs"
+  | "persist_events"
+  | "rebuild_projections"
+  | "persist_outcome";
 
-  return BigInt(row?.value ?? "0");
-}
+export type SyncStatus = "idle" | "syncing" | "healthy" | "stale" | "failed" | "rebuilding";
 
-export function setLastSyncedBlock(blockNumber: bigint) {
+export type SyncHealthState = {
+  lastAttemptedBlock: bigint;
+  lastAttemptedAt: string | null;
+  lastSuccessfulBlock: bigint;
+  lastSuccessfulAt: string | null;
+  chainHeadSeen: bigint;
+  lagBlocks: bigint;
+  phase: SyncPhase;
+  status: SyncStatus;
+  lastError: string | null;
+};
+
+const defaultSyncHealth: SyncHealthState = {
+  lastAttemptedBlock: 0n,
+  lastAttemptedAt: null,
+  lastSuccessfulBlock: 0n,
+  lastSuccessfulAt: null,
+  chainHeadSeen: 0n,
+  lagBlocks: 0n,
+  phase: "idle",
+  status: "idle",
+  lastError: null,
+};
+
+const syncKeyMap = {
+  lastAttemptedBlock: "last_attempted_block",
+  lastAttemptedAt: "last_attempted_at",
+  lastSuccessfulBlock: "last_successful_block",
+  lastSuccessfulAt: "last_successful_at",
+  chainHeadSeen: "chain_head_seen",
+  lagBlocks: "lag_blocks",
+  phase: "phase",
+  status: "status",
+  lastError: "last_error",
+} as const;
+
+function upsertSyncStateValue(key: string, value: string) {
   db.prepare(
     `
       INSERT INTO sync_state (key, value)
-      VALUES ('last_synced_block', ?)
+      VALUES (?, ?)
       ON CONFLICT(key) DO UPDATE SET value = excluded.value
     `
-  ).run(blockNumber.toString());
+  ).run(key, value);
+}
+
+export function patchSyncHealthState(patch: Partial<SyncHealthState>) {
+  if (patch.lastAttemptedBlock !== undefined) {
+    upsertSyncStateValue(syncKeyMap.lastAttemptedBlock, patch.lastAttemptedBlock.toString());
+  }
+
+  if (patch.lastAttemptedAt !== undefined) {
+    upsertSyncStateValue(syncKeyMap.lastAttemptedAt, patch.lastAttemptedAt ?? "");
+  }
+
+  if (patch.lastSuccessfulBlock !== undefined) {
+    upsertSyncStateValue(syncKeyMap.lastSuccessfulBlock, patch.lastSuccessfulBlock.toString());
+    // Backward-compatible key used by existing endpoints.
+    upsertSyncStateValue("last_synced_block", patch.lastSuccessfulBlock.toString());
+  }
+
+  if (patch.lastSuccessfulAt !== undefined) {
+    upsertSyncStateValue(syncKeyMap.lastSuccessfulAt, patch.lastSuccessfulAt ?? "");
+  }
+
+  if (patch.chainHeadSeen !== undefined) {
+    upsertSyncStateValue(syncKeyMap.chainHeadSeen, patch.chainHeadSeen.toString());
+  }
+
+  if (patch.lagBlocks !== undefined) {
+    upsertSyncStateValue(syncKeyMap.lagBlocks, patch.lagBlocks.toString());
+  }
+
+  if (patch.phase !== undefined) {
+    upsertSyncStateValue(syncKeyMap.phase, patch.phase);
+  }
+
+  if (patch.status !== undefined) {
+    upsertSyncStateValue(syncKeyMap.status, patch.status);
+  }
+
+  if (patch.lastError !== undefined) {
+    upsertSyncStateValue(syncKeyMap.lastError, patch.lastError ?? "");
+  }
+}
+
+export function getSyncHealthState(): SyncHealthState {
+  const rows = db.prepare("SELECT key, value FROM sync_state").all() as Array<{ key: string; value: string }>;
+  const map = new Map(rows.map((row) => [row.key, row.value]));
+
+  const fallbackSyncedBlock = map.get("last_synced_block") ?? "0";
+  const successfulBlockRaw = map.get(syncKeyMap.lastSuccessfulBlock) ?? fallbackSyncedBlock;
+
+  return {
+    lastAttemptedBlock: BigInt(map.get(syncKeyMap.lastAttemptedBlock) ?? successfulBlockRaw ?? "0"),
+    lastAttemptedAt: map.get(syncKeyMap.lastAttemptedAt) || null,
+    lastSuccessfulBlock: BigInt(successfulBlockRaw),
+    lastSuccessfulAt: map.get(syncKeyMap.lastSuccessfulAt) || null,
+    chainHeadSeen: BigInt(map.get(syncKeyMap.chainHeadSeen) ?? successfulBlockRaw ?? "0"),
+    lagBlocks: BigInt(map.get(syncKeyMap.lagBlocks) ?? "0"),
+    phase: (map.get(syncKeyMap.phase) as SyncPhase | undefined) ?? defaultSyncHealth.phase,
+    status: (map.get(syncKeyMap.status) as SyncStatus | undefined) ?? defaultSyncHealth.status,
+    lastError: map.get(syncKeyMap.lastError) || null,
+  };
+}
+
+export function getLastSyncedBlock() {
+  return getSyncHealthState().lastSuccessfulBlock;
+}
+
+export function setLastSyncedBlock(blockNumber: bigint) {
+  patchSyncHealthState({
+    lastSuccessfulBlock: blockNumber,
+    chainHeadSeen: blockNumber,
+    lagBlocks: 0n,
+    lastSuccessfulAt: new Date().toISOString(),
+    phase: "persist_outcome",
+    status: "healthy",
+    lastError: null,
+  });
 }
