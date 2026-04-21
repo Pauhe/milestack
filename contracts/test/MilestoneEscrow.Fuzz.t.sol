@@ -16,6 +16,8 @@ contract MilestoneEscrowFuzzTest is Test {
 
     bytes32 internal constant EVIDENCE_HASH = keccak256("fuzz-evidence");
     bytes32 internal constant DISPUTE_HASH = keccak256("fuzz-dispute");
+    bytes32 internal constant SECOND_EVIDENCE_HASH = keccak256("fuzz-evidence-2");
+    bytes32 internal constant SECOND_DISPUTE_HASH = keccak256("fuzz-dispute-2");
 
     function testFuzzApprovePayoutAccounting(
         uint96 rawAmount,
@@ -239,6 +241,198 @@ contract MilestoneEscrowFuzzTest is Test {
         assertEq(uint256(escrow.getMilestone(0).status), uint256(MilestoneStatus.Cancelled));
     }
 
+    function testFuzzMultiMilestoneFundAllThenSequentialApproveAccounting(
+        uint96 rawAmount0,
+        uint96 rawAmount1,
+        uint32 rawReviewWindow,
+        uint16 rawFeeBps
+    ) public {
+        uint256 amount0 = bound(uint256(rawAmount0), 1, 1_000_000_000_000e6);
+        uint256 amount1 = bound(uint256(rawAmount1), 1, 1_000_000_000_000e6);
+        uint32 reviewWindow = uint32(bound(uint256(rawReviewWindow), 1, 30 days));
+        uint16 feeBps = uint16(bound(uint256(rawFeeBps), 0, 2_000));
+
+        uint256 totalAmount = amount0 + amount1;
+
+        (MockERC20 token, MilestoneEscrow escrow) =
+            _deployTwoMilestoneEscrowWithFunding(amount0, amount1, reviewWindow, feeBps, totalAmount);
+
+        vm.prank(BUYER);
+        escrow.fundAllMilestones();
+
+        vm.prank(SELLER);
+        escrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        escrow.approveMilestone(0);
+
+        vm.prank(SELLER);
+        escrow.submitMilestone(1, SECOND_EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        escrow.approveMilestone(1);
+
+        uint256 fee0 = (amount0 * feeBps) / 10_000;
+        uint256 fee1 = (amount1 * feeBps) / 10_000;
+        uint256 sellerNet0 = amount0 - fee0;
+        uint256 sellerNet1 = amount1 - fee1;
+        uint256 totalFees = fee0 + fee1;
+        uint256 totalSellerNet = sellerNet0 + sellerNet1;
+
+        Milestone memory milestone0 = escrow.getMilestone(0);
+        Milestone memory milestone1 = escrow.getMilestone(1);
+
+        assertEq(uint256(milestone0.status), uint256(MilestoneStatus.PaidOut));
+        assertEq(uint256(milestone1.status), uint256(MilestoneStatus.PaidOut));
+        assertEq(milestone0.sellerAward, sellerNet0);
+        assertEq(milestone1.sellerAward, sellerNet1);
+        assertEq(escrow.totalFunded(), totalAmount);
+        assertEq(escrow.totalReleasedToSeller(), totalSellerNet);
+        assertEq(escrow.totalRefundedToBuyer(), 0);
+        assertEq(escrow.totalFeesCollected(), totalFees);
+        assertEq(token.balanceOf(SELLER), totalSellerNet);
+        assertEq(token.balanceOf(FEE_RECIPIENT), totalFees);
+        assertEq(token.balanceOf(BUYER), 0);
+        _assertEscrowConservation(token, escrow);
+        assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
+    function testFuzzMultiMilestoneApproveThenClaimAfterReviewWindowAccounting(
+        uint96 rawAmount0,
+        uint96 rawAmount1,
+        uint32 rawReviewWindow,
+        uint16 rawFeeBps
+    ) public {
+        uint256 amount0 = bound(uint256(rawAmount0), 1, 1_000_000_000_000e6);
+        uint256 amount1 = bound(uint256(rawAmount1), 1, 1_000_000_000_000e6);
+        uint32 reviewWindow = uint32(bound(uint256(rawReviewWindow), 1, 30 days));
+        uint16 feeBps = uint16(bound(uint256(rawFeeBps), 0, 2_000));
+
+        uint256 totalAmount = amount0 + amount1;
+
+        (MockERC20 token, MilestoneEscrow escrow) =
+            _deployTwoMilestoneEscrowWithFunding(amount0, amount1, reviewWindow, feeBps, totalAmount);
+
+        vm.prank(BUYER);
+        escrow.fundAllMilestones();
+
+        vm.prank(SELLER);
+        escrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        escrow.approveMilestone(0);
+
+        vm.prank(SELLER);
+        escrow.submitMilestone(1, SECOND_EVIDENCE_HASH);
+
+        Milestone memory submittedSecondMilestone = escrow.getMilestone(1);
+        vm.warp(submittedSecondMilestone.reviewDeadline + 1);
+
+        vm.prank(SELLER);
+        escrow.claimAfterReviewWindow(1);
+
+        uint256 fee0 = (amount0 * feeBps) / 10_000;
+        uint256 fee1 = (amount1 * feeBps) / 10_000;
+        uint256 sellerNet0 = amount0 - fee0;
+        uint256 sellerNet1 = amount1 - fee1;
+        uint256 totalFees = fee0 + fee1;
+        uint256 totalSellerNet = sellerNet0 + sellerNet1;
+
+        Milestone memory milestone0 = escrow.getMilestone(0);
+        Milestone memory milestone1 = escrow.getMilestone(1);
+
+        assertEq(uint256(milestone0.status), uint256(MilestoneStatus.PaidOut));
+        assertEq(uint256(milestone1.status), uint256(MilestoneStatus.PaidOut));
+        assertEq(milestone0.sellerAward, sellerNet0);
+        assertEq(milestone1.sellerAward, sellerNet1);
+        assertEq(escrow.totalFunded(), totalAmount);
+        assertEq(escrow.totalReleasedToSeller(), totalSellerNet);
+        assertEq(escrow.totalRefundedToBuyer(), 0);
+        assertEq(escrow.totalFeesCollected(), totalFees);
+        assertEq(token.balanceOf(SELLER), totalSellerNet);
+        assertEq(token.balanceOf(FEE_RECIPIENT), totalFees);
+        assertEq(token.balanceOf(BUYER), 0);
+        _assertEscrowConservation(token, escrow);
+        assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
+    function testFuzzMultiMilestoneDisputeThenCancelRemainingAccounting(
+        uint96 rawAmount0,
+        uint96 rawAmount1,
+        uint32 rawReviewWindow,
+        uint16 rawFeeBps,
+        uint16 rawSellerShareBps
+    ) public {
+        uint256 amount0 = bound(uint256(rawAmount0), 1, 1_000_000_000_000e6);
+        uint256 amount1 = bound(uint256(rawAmount1), 1, 1_000_000_000_000e6);
+        uint32 reviewWindow = uint32(bound(uint256(rawReviewWindow), 1, 30 days));
+        uint16 feeBps = uint16(bound(uint256(rawFeeBps), 0, 2_000));
+
+        uint256 sellerGrossAmount0 = (amount0 * bound(uint256(rawSellerShareBps), 0, 10_000)) / 10_000;
+        uint256 buyerAmount0 = amount0 - sellerGrossAmount0;
+
+        (MockERC20 token, MilestoneEscrow escrow) =
+            _deployTwoMilestoneEscrowWithFunding(amount0, amount1, reviewWindow, feeBps, amount0);
+
+        vm.prank(BUYER);
+        escrow.fundMilestone(0);
+
+        vm.prank(SELLER);
+        escrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        escrow.openDispute(0, DISPUTE_HASH);
+
+        vm.prank(ARBITER);
+        escrow.resolveDispute(0, buyerAmount0, sellerGrossAmount0);
+
+        vm.prank(BUYER);
+        escrow.cancelUnfundedMilestones();
+
+        uint256 fee0 = (sellerGrossAmount0 * feeBps) / 10_000;
+        uint256 sellerNet0 = sellerGrossAmount0 - fee0;
+
+        Milestone memory milestone0 = escrow.getMilestone(0);
+        Milestone memory milestone1 = escrow.getMilestone(1);
+
+        assertEq(milestone0.buyerAward, buyerAmount0);
+        assertEq(milestone0.sellerAward, sellerGrossAmount0);
+        assertEq(escrow.totalFunded(), amount0);
+        assertEq(escrow.totalReleasedToSeller(), sellerNet0);
+        assertEq(escrow.totalRefundedToBuyer(), buyerAmount0);
+        assertEq(escrow.totalFeesCollected(), fee0);
+        assertEq(token.balanceOf(BUYER), buyerAmount0);
+        assertEq(token.balanceOf(SELLER), sellerNet0);
+        assertEq(token.balanceOf(FEE_RECIPIENT), fee0);
+
+        if (sellerGrossAmount0 == 0) {
+            assertEq(uint256(milestone0.status), uint256(MilestoneStatus.Refunded));
+        } else {
+            assertEq(uint256(milestone0.status), uint256(MilestoneStatus.PaidOut));
+        }
+
+        assertEq(uint256(milestone1.status), uint256(MilestoneStatus.Cancelled));
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        escrow.fundMilestone(1);
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        escrow.fundAllMilestones();
+
+        vm.prank(SELLER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        escrow.submitMilestone(1, SECOND_EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        escrow.openDispute(1, SECOND_DISPUTE_HASH);
+
+        _assertEscrowConservation(token, escrow);
+        assertEq(token.balanceOf(address(escrow)), 0);
+    }
+
     function _deploySingleMilestoneEscrow(uint256 amount, uint32 reviewWindow, uint16 feeBps)
         internal
         returns (MockERC20 token, MilestoneEscrow escrow)
@@ -290,5 +484,26 @@ contract MilestoneEscrowFuzzTest is Test {
             MilestoneConfig({ amount: amount1, reviewWindowSeconds: reviewWindow });
 
         escrow = new MilestoneEscrow(config, milestoneConfigs);
+    }
+
+    function _deployTwoMilestoneEscrowWithFunding(
+        uint256 amount0,
+        uint256 amount1,
+        uint32 reviewWindow,
+        uint16 feeBps,
+        uint256 mintAmount
+    ) internal returns (MockERC20 token, MilestoneEscrow escrow) {
+        (token, escrow) = _deployTwoMilestoneEscrow(amount0, amount1, reviewWindow, feeBps);
+
+        token.mint(BUYER, mintAmount);
+        vm.prank(BUYER);
+        token.approve(address(escrow), type(uint256).max);
+    }
+
+    function _assertEscrowConservation(MockERC20 token, MilestoneEscrow escrow) internal view {
+        uint256 distributedAndHeld = token.balanceOf(address(escrow)) + escrow.totalReleasedToSeller()
+            + escrow.totalRefundedToBuyer() + escrow.totalFeesCollected();
+
+        assertEq(distributedAndHeld, escrow.totalFunded());
     }
 }
