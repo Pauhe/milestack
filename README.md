@@ -1,5 +1,8 @@
 # Milestack
 
+[![Contracts](https://github.com/Pauhe/milestack/actions/workflows/contracts.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/contracts.yml)
+[![Slither](https://github.com/Pauhe/milestack/actions/workflows/slither.yml/badge.svg)](https://github.com/Pauhe/milestack/actions/workflows/slither.yml)
+
 Milestack is a non-custodial milestone escrow platform for digital work on Ethereum L2s.
 
 It is designed for cases where buyers and sellers do not fully trust each other, especially in cross-border work. Funds are held in smart contracts, not by the platform. Sellers submit milestone deliverables, buyers approve or dispute within a review window, and sellers can claim payment after timeout if buyers stay silent.

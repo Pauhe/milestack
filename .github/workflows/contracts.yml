@@ -98,3 +98,13 @@ jobs:
 
       - name: Run coverage
         run: forge coverage
+
+      - name: Save coverage report
+        run: forge coverage --report lcov --report-file lcov.info
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-coverage-${{ github.run_id }}
+          path: contracts/lcov.info
+          if-no-files-found: error
