@@ -38,6 +38,42 @@ describe("route-level workflow composition", () => {
     expect(routeGuidance.blockedReason).toContain("Wallet connection is required");
   });
 
+  it("keeps degraded fallback blocked reason explicit when base guidance has no blocked reason", () => {
+    const semantics = deriveMilestoneActionSemantics({
+      role: "seller",
+      status: 2,
+      milestoneId: 3,
+      currentMilestoneIndex: 3,
+      reviewDeadline: 1_000,
+      nowUnixSeconds: 2_000,
+      derived: {
+        isCurrent: true,
+        isBlocked: false,
+        buyerCanApprove: false,
+        buyerCanDispute: false,
+        sellerCanClaim: true,
+      },
+    });
+
+    const baseGuidance = deriveActionPanelGuidance({
+      role: "seller",
+      isConnected: true,
+      isWrongChain: false,
+      hasCurrentMilestone: true,
+      semantics,
+    });
+
+    const routeGuidance = {
+      ...baseGuidance,
+      blockedReason:
+        baseGuidance.blockedReason
+        ?? "Backend freshness is degraded; keep role actions blocked until backend-derived eligibility is available.",
+    };
+
+    expect(baseGuidance.blockedReason).toBeNull();
+    expect(routeGuidance.blockedReason).toContain("Backend freshness is degraded");
+  });
+
   it("keeps milestone route guidance linked to dispute resolution route without inventing semantics", () => {
     const semantics = deriveMilestoneActionSemantics({
       role: "visitor",

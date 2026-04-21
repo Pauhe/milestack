@@ -326,6 +326,12 @@ describe("timeline and reputation truth helpers", () => {
     expect(note).toContain("unavailable");
   });
 
+  it("keeps malformed timeline truth payload conservative", () => {
+    const note = getTimelineTruthNote("bad-payload" as unknown as Record<string, unknown>);
+
+    expect(note).toContain("unavailable");
+  });
+
   it("maps healthy reputation truth metadata", () => {
     const assessment = getReputationTruthAssessment(makeReputationTruth());
 
