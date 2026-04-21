@@ -23,6 +23,12 @@ import { formatUsdc } from "@/lib/format";
 import { getDealStatusLabel, getMilestoneStatusLabel } from "@/lib/status";
 import { DealActions } from "@/components/deal-actions";
 import {
+  WorkflowCallout,
+  WorkflowSectionHeader,
+  WorkflowStatusRow,
+  WorkflowSurfacePanel,
+} from "@/components/workflow-surface";
+import {
   deriveMilestoneActionSemantics,
   type MilestoneActionSemantics,
   type MilestoneRole,
@@ -270,12 +276,15 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
         </article>
       </section>
 
-      <article className="panel stack-md" data-testid="deal-workflow-guidance">
-        <div className="eyebrow">Workflow guidance</div>
-        <h2>Traverse the current workflow path</h2>
-        <p className="status-text">
-          {workflowContext.guidance.nextStepLabel}: {workflowContext.guidance.nextStepMessage}
-        </p>
+      <WorkflowSurfacePanel data-testid="deal-workflow-guidance">
+        <WorkflowSectionHeader
+          eyebrow="Workflow guidance"
+          title="Traverse the current workflow path"
+        />
+        <WorkflowStatusRow
+          label={workflowContext.guidance.nextStepLabel}
+          value={workflowContext.guidance.nextStepMessage}
+        />
         <ul className="plain-list stack-sm">
           <li>
             Current milestone route: <a href={workflowContext.milestoneHref}>{workflowContext.milestoneHref}</a>
@@ -289,15 +298,21 @@ export default async function DealOverviewPage({ params }: DealOverviewPageProps
           </li>
         </ul>
         {workflowContext.guidance.claimAfterTimeoutHint ? (
-          <p className="status-text">Timeout hint: {workflowContext.guidance.claimAfterTimeoutHint}</p>
+          <WorkflowCallout tone="trust" title="Timeout hint" testId="deal-timeout-hint">
+            {workflowContext.guidance.claimAfterTimeoutHint}
+          </WorkflowCallout>
         ) : null}
-        <p className="status-text" data-testid="deal-action-authority-truth">
-          Action authority: {workflowContext.authorityExplanation}
-        </p>
+        <WorkflowStatusRow
+          label="Action authority"
+          value={workflowContext.authorityExplanation}
+          testId="deal-action-authority-truth"
+        />
         {workflowContext.guidance.blockedReason ? (
-          <p className="status-text">Blocked: {workflowContext.guidance.blockedReason}</p>
+          <WorkflowCallout tone="degraded" title="Blocked" testId="deal-workflow-blocked-reason">
+            {workflowContext.guidance.blockedReason}
+          </WorkflowCallout>
         ) : null}
-      </article>
+      </WorkflowSurfacePanel>
 
       <article className="panel stack-md">
         <div className="eyebrow">Metadata verification</div>

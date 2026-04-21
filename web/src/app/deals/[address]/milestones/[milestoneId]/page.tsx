@@ -15,6 +15,12 @@ import { formatTimestamp, formatUsdc } from "@/lib/format";
 import { getMilestoneStatusLabel } from "@/lib/status";
 import { MilestoneActions } from "@/components/milestone-actions";
 import {
+  WorkflowCallout,
+  WorkflowSectionHeader,
+  WorkflowStatusRow,
+  WorkflowSurfacePanel,
+} from "@/components/workflow-surface";
+import {
   deriveMilestoneActionSemantics,
   type MilestoneRole,
 } from "@/lib/milestone-semantics";
@@ -220,12 +226,15 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
         </article>
       </section>
 
-      <article className="panel stack-md" data-testid="milestone-workflow-guidance">
-        <div className="eyebrow">Workflow guidance</div>
-        <h2>Route-to-route progression</h2>
-        <p className="status-text">
-          {routeGuidance.nextStepLabel}: {routeGuidance.nextStepMessage}
-        </p>
+      <WorkflowSurfacePanel data-testid="milestone-workflow-guidance">
+        <WorkflowSectionHeader
+          eyebrow="Workflow guidance"
+          title="Route-to-route progression"
+        />
+        <WorkflowStatusRow
+          label={routeGuidance.nextStepLabel}
+          value={routeGuidance.nextStepMessage}
+        />
         <ul className="plain-list stack-sm">
           <li>
             Milestone route: <a href={`/deals/${escrowAddress}/milestones/${parsedMilestoneId.toString()}`}>/deals/{escrowAddress}/milestones/{parsedMilestoneId.toString()}</a>
@@ -235,18 +244,26 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
           </li>
         </ul>
         {routeGuidance.claimAfterTimeoutHint ? (
-          <p className="status-text">Timeout hint: {routeGuidance.claimAfterTimeoutHint}</p>
+          <WorkflowCallout tone="trust" title="Timeout hint" testId="milestone-timeout-hint">
+            {routeGuidance.claimAfterTimeoutHint}
+          </WorkflowCallout>
         ) : null}
-        <p className="status-text" data-testid="milestone-review-deadline-explanation">
-          Review deadline meaning: {reviewDeadlineExplanation}
-        </p>
-        <p className="status-text" data-testid="milestone-action-authority-explanation">
-          Action authority: {actionAuthorityExplanation}
-        </p>
+        <WorkflowStatusRow
+          label="Review deadline meaning"
+          value={reviewDeadlineExplanation}
+          testId="milestone-review-deadline-explanation"
+        />
+        <WorkflowStatusRow
+          label="Action authority"
+          value={actionAuthorityExplanation}
+          testId="milestone-action-authority-explanation"
+        />
         {routeGuidance.blockedReason ? (
-          <p className="status-text">Blocked: {routeGuidance.blockedReason}</p>
+          <WorkflowCallout tone="degraded" title="Blocked" testId="milestone-workflow-blocked-reason">
+            {routeGuidance.blockedReason}
+          </WorkflowCallout>
         ) : null}
-      </article>
+      </WorkflowSurfacePanel>
 
       <article className="panel stack-md">
         <div className="eyebrow">Metadata verification</div>

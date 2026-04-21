@@ -17,6 +17,7 @@ import type { EscrowOverview } from "@/lib/contracts/milestone-escrow";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { getDealStatusLabel } from "@/lib/status";
+import { WorkflowActionGroup, WorkflowSectionHeader, WorkflowSurfacePanel } from "@/components/workflow-surface";
 
 type DealActionsProps = {
   overview: EscrowOverview;
@@ -130,13 +131,12 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
 
   return (
     <section className="stack-lg">
-      <article className="panel stack-md">
-        <div className="eyebrow">Connected role</div>
-        <h2>{role === "visitor" ? "Read-only visitor" : role}</h2>
-        <p>
-          Deal status: {getDealStatusLabel(overview.dealStatus)}. Current milestone status: {" "}
-          {semantics ? semantics.statusLabel : "Not available"}.
-        </p>
+      <WorkflowSurfacePanel>
+        <WorkflowSectionHeader
+          eyebrow="Connected role"
+          title={role === "visitor" ? "Read-only visitor" : role}
+          description={`Deal status: ${getDealStatusLabel(overview.dealStatus)}. Current milestone status: ${semantics ? semantics.statusLabel : "Not available"}.`}
+        />
 
         {!isConnected ? (
           <div className="stack-sm">
@@ -173,18 +173,17 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
 
         {hash ? <p className="status-text">Last submitted tx: {hash}</p> : null}
         {error ? <p className="status-text">Write error: {error.message}</p> : null}
-      </article>
+      </WorkflowSurfacePanel>
 
-      <article className="panel stack-md">
-        <div className="eyebrow">Current milestone actions</div>
-        <h2>Available actions</h2>
+      <WorkflowSurfacePanel>
+        <WorkflowSectionHeader eyebrow="Current milestone actions" title="Available actions" />
 
         <p className="status-text">
           {guidance.nextStepLabel}: {guidance.nextStepMessage}
         </p>
 
         {overview.currentMilestone ? (
-          <div className="stack-md">
+          <WorkflowActionGroup>
             {semantics?.canFund ? (
               <button
                 className="button button--primary"
@@ -281,11 +280,11 @@ export function DealActions({ overview, backendMilestoneDerived, backendReviewDe
             {guidance.blockedReason ? (
               <p className="status-text">{guidance.blockedReason}</p>
             ) : null}
-          </div>
+          </WorkflowActionGroup>
         ) : (
           <p className="status-text">{guidance.blockedReason ?? "No current milestone data is available for this escrow."}</p>
         )}
-      </article>
+      </WorkflowSurfacePanel>
     </section>
   );
 }

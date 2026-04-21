@@ -19,6 +19,12 @@ import { formatTimestamp, formatUsdc } from "@/lib/format";
 import { getMilestoneStatusLabel } from "@/lib/status";
 import { DisputeResolutionForm } from "@/components/dispute-resolution-form";
 import {
+  WorkflowCallout,
+  WorkflowSectionHeader,
+  WorkflowStatusRow,
+  WorkflowSurfacePanel,
+} from "@/components/workflow-surface";
+import {
   deriveMilestoneActionSemantics,
   type MilestoneRole,
 } from "@/lib/milestone-semantics";
@@ -266,12 +272,15 @@ export default async function DisputePage({ params }: DisputePageProps) {
         </article>
       </section>
 
-      <article className="panel stack-md" data-testid="dispute-workflow-guidance">
-        <div className="eyebrow">Workflow guidance</div>
-        <h2>Dispute route eligibility</h2>
-        <p className="status-text">
-          {routeGuidance.nextStepLabel}: {routeGuidance.nextStepMessage}
-        </p>
+      <WorkflowSurfacePanel data-testid="dispute-workflow-guidance">
+        <WorkflowSectionHeader
+          eyebrow="Workflow guidance"
+          title="Dispute route eligibility"
+        />
+        <WorkflowStatusRow
+          label={routeGuidance.nextStepLabel}
+          value={routeGuidance.nextStepMessage}
+        />
         <ul className="plain-list stack-sm">
           <li>
             Milestone route: <a href={milestoneRouteHref}>{milestoneRouteHref}</a>
@@ -280,18 +289,24 @@ export default async function DisputePage({ params }: DisputePageProps) {
             Dispute route: <a href={disputeRouteHref}>{disputeRouteHref}</a>
           </li>
         </ul>
-        <p className="status-text">Arbiter wallet guidance: {arbiterGuidance.blockedReason}</p>
-        <p className="status-text">Non-arbiter guidance: {visitorGuidance.blockedReason}</p>
-        <p className="status-text" data-testid="dispute-review-deadline-explanation">
-          Review deadline meaning: {reviewDeadlineExplanation}
-        </p>
-        <p className="status-text" data-testid="dispute-route-authority-explanation">
-          Route authority: {routeActionAuthorityExplanation}
-        </p>
+        <WorkflowStatusRow label="Arbiter wallet guidance" value={arbiterGuidance.blockedReason} />
+        <WorkflowStatusRow label="Non-arbiter guidance" value={visitorGuidance.blockedReason} />
+        <WorkflowStatusRow
+          label="Review deadline meaning"
+          value={reviewDeadlineExplanation}
+          testId="dispute-review-deadline-explanation"
+        />
+        <WorkflowStatusRow
+          label="Route authority"
+          value={routeActionAuthorityExplanation}
+          testId="dispute-route-authority-explanation"
+        />
         {routeGuidance.blockedReason ? (
-          <p className="status-text">Blocked: {routeGuidance.blockedReason}</p>
+          <WorkflowCallout tone="degraded" title="Blocked" testId="dispute-workflow-blocked-reason">
+            {routeGuidance.blockedReason}
+          </WorkflowCallout>
         ) : null}
-      </article>
+      </WorkflowSurfacePanel>
 
       <section className="grid-two">
         <article className="panel stack-md">

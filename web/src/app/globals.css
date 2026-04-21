@@ -231,6 +231,62 @@ a {
   line-height: 1.55;
 }
 
+.workflow-surface-panel {
+  gap: 0.9rem;
+}
+
+.workflow-surface-header h2 {
+  font-size: clamp(1.15rem, 2.2vw, 1.45rem);
+  line-height: 1.25;
+}
+
+.workflow-surface-description {
+  max-width: 72ch;
+}
+
+.workflow-surface-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.workflow-surface-status-label {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.workflow-surface-status-value {
+  color: var(--muted);
+}
+
+.workflow-surface-callout {
+  border: 1px solid rgba(164, 187, 255, 0.22);
+  border-radius: 0.9rem;
+  padding: 0.85rem 0.95rem;
+  background: rgba(12, 22, 39, 0.72);
+}
+
+.workflow-surface-callout-title {
+  color: var(--foreground);
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.workflow-surface-callout--trust {
+  border-color: rgba(124, 242, 201, 0.26);
+  background: rgba(16, 36, 33, 0.34);
+}
+
+.workflow-surface-callout--degraded {
+  border-color: rgba(255, 206, 128, 0.34);
+  background: rgba(51, 35, 18, 0.32);
+}
+
+.workflow-surface-action-group {
+  border-top: 1px solid rgba(164, 187, 255, 0.16);
+  padding-top: 0.9rem;
+}
+
 @media (max-width: 800px) {
   .site-header {
     align-items: flex-start;
