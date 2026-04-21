@@ -1,6 +1,23 @@
-## Contracts Dependencies
+## Contracts Workspace
 
-The contracts workspace uses Foundry with libraries stored under `contracts/lib`.
+This workspace uses [Foundry](https://book.getfoundry.sh/) and keeps Solidity dependencies under `contracts/lib`.
+
+## Toolchain setup (from repo root)
+
+Install Foundry in a reproducible way:
+
+```bash
+curl -L https://foundry.paradigm.xyz | bash
+~/.foundry/bin/foundryup
+```
+
+Use Foundry binaries from this repository without relying on shell profile state:
+
+```bash
+PATH="$HOME/.foundry/bin:$PATH" forge --version
+```
+
+## Dependencies
 
 Current dependencies:
 - `forge-std`
@@ -24,12 +41,20 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 ```
 
-### Testing
+## Testing (repo-root entrypoints)
 
-Run the full contracts test suite with:
+Run lifecycle-focused suites from the repository root:
 
 ```bash
-forge test
+PATH="$HOME/.foundry/bin:$PATH" forge test --root contracts --match-contract MilestoneEscrowSubmissionTest
+PATH="$HOME/.foundry/bin:$PATH" forge test --root contracts --match-contract MilestoneEscrowFuzzTest
+PATH="$HOME/.foundry/bin:$PATH" forge test --root contracts --match-contract MilestoneEscrowInvariantTest
+```
+
+Run the full contracts sweep from the repository root:
+
+```bash
+PATH="$HOME/.foundry/bin:$PATH" forge test --root contracts
 ```
 
 The suite includes:
@@ -37,12 +62,12 @@ The suite includes:
 - fuzz tests
 - invariant tests
 
-### Deployment
+## Deployment
 
 Deploy the factory with the Foundry script:
 
 ```bash
-forge script script/DeployEscrowFactory.s.sol:DeployEscrowFactory --private-key "$PRIVATE_KEY" --broadcast
+PATH="$HOME/.foundry/bin:$PATH" forge script contracts/script/DeployEscrowFactory.s.sol:DeployEscrowFactory --private-key "$PRIVATE_KEY" --broadcast
 ```
 
 Use the repository wrapper to deploy and write a manifest automatically:
