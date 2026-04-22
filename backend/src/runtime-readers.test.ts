@@ -29,6 +29,10 @@ function padUint(value: bigint): `0x${string}` {
 type PrimitiveArg = string | number | bigint | boolean;
 
 function encodeNonIndexedData(eventName: string, args: Record<string, PrimitiveArg>): `0x${string}` {
+  if (eventName === "DealCompleted") {
+    return "0x";
+  }
+
   if (eventName === "EscrowCreated") {
     const arbiter = String(args.arbiter);
     const token = String(args.token);
@@ -256,6 +260,86 @@ test("readEscrowTimeline drops untracked and malformed logs", async () => {
   try {
     const events = await readEscrowTimeline(ESCROW);
     assert.equal(events.length, 0);
+  } finally {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (publicClient as any).getLogs = originalGetLogs;
+  }
+});
+
+test("readEscrowTimeline handles missing data/topics, default logIndex sorting, and non-object payload normalization", async () => {
+  const originalGetLogs = publicClient.getLogs;
+
+  const approved = createLog(
+    milestoneEscrowAbi,
+    "MilestoneApproved",
+    { milestoneId: 0n },
+    10n,
+    "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    2n,
+    ESCROW
+  );
+
+  const claimedNoIndex = createLog(
+    milestoneEscrowAbi,
+    "MilestoneClaimed",
+    { milestoneId: 0n, sellerAmount: 20n, feeAmount: 1n },
+    10n,
+    "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    0n,
+    ESCROW
+  );
+
+  const completedNoIndex = createLog(
+    milestoneEscrowAbi,
+    "DealCompleted",
+    {},
+    10n,
+    "0xcccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    0n,
+    ESCROW
+  );
+
+  const missingTopics = {
+    address: ESCROW,
+    blockNumber: 9n,
+    transactionHash: "0xdddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+    logIndex: 0n,
+    data: "0x",
+    topics: null,
+  };
+
+  const missingData = {
+    address: ESCROW,
+    blockNumber: 9n,
+    transactionHash: "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    logIndex: 1n,
+    data: null,
+    topics: ["0xdeadbeef"],
+  };
+
+  const withUndefinedLogIndex = {
+    ...completedNoIndex,
+    logIndex: undefined,
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (publicClient as any).getLogs = async ({ address }: { address: Address }) => {
+    if (address.toLowerCase() === FACTORY.toLowerCase()) {
+      return [];
+    }
+
+    return [approved, withUndefinedLogIndex, missingTopics, missingData];
+  };
+
+  try {
+    const events = await readEscrowTimeline(ESCROW);
+
+    assert.equal(events.length, 2);
+    assert.equal(events[0]?.eventName, "DealCompleted");
+    assert.equal(events[1]?.eventName, "MilestoneApproved");
+    assert.equal(events[0]?.logIndex, undefined);
+    assert.equal(events[0]?.actorRole, null);
+    assert.match(events[0]?.summary ?? "", /deal completed/i);
   } finally {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (publicClient as any).getLogs = originalGetLogs;

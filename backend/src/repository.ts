@@ -577,10 +577,6 @@ function queryRowsForParticipantAddresses(addresses: string[]) {
 
 export function listDiscoveryAggregates(chainId: number): DiscoveryAggregateRow[] {
   const escrows = listEscrowsByChain(chainId);
-  if (escrows.length === 0) {
-    return [];
-  }
-
   const escrowAddresses = escrows.map((escrow) => escrow.address);
   const metadataHashes = Array.from(new Set(escrows.map((escrow) => escrow.metadata_hash)));
   const participantAddresses = Array.from(
