@@ -14,9 +14,17 @@ import {
 import { configuredChain } from "@/lib/chains";
 import { milestoneEscrowAbi } from "@/lib/contracts/milestone-escrow-abi";
 import type { EscrowMilestone, EscrowOverview } from "@/lib/contracts/milestone-escrow";
+import {
+  composeEvidencePayload,
+  disputeReasonCodes,
+  evidenceReferenceTypes,
+  type DisputeReasonCode,
+  type EvidenceReferenceInput,
+  type EvidenceReferenceType,
+} from "@/lib/evidence-payload";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
-import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { getDealStatusLabel } from "@/lib/status";
+import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { ActionPanelWalletPanel, ActionPanelWorkflowPanel } from "@/components/action-panel-presenter";
 import { WorkflowActionGroup } from "@/components/workflow-surface";
 
@@ -36,6 +44,29 @@ type MilestoneActionsProps = {
 
 type Role = MilestoneRole;
 
+type EvidenceDraft = {
+  note: string;
+  references: EvidenceReferenceInput[];
+};
+
+const defaultReference: EvidenceReferenceInput = {
+  type: "deliverable",
+  label: "",
+  url: "",
+};
+
+const defaultSubmissionDraft: EvidenceDraft = {
+  note: "",
+  references: [{ ...defaultReference }],
+};
+
+const defaultDisputeDraft: EvidenceDraft = {
+  note: "",
+  references: [{ ...defaultReference, type: "communication" }],
+};
+
+const defaultDisputeReason: DisputeReasonCode = "scope-mismatch";
+
 export function MilestoneActions({
   overview,
   milestoneId,
@@ -48,8 +79,9 @@ export function MilestoneActions({
   const { connect, connectors, isPending: isConnectPending } = useConnect();
   const { disconnect } = useDisconnect();
   const { data: hash, error, isPending, writeContract } = useWriteContract();
-  const [evidenceHash, setEvidenceHash] = useState(milestone.evidenceHash === zeroHash ? "" : milestone.evidenceHash);
-  const [disputeHash, setDisputeHash] = useState(milestone.disputeHash === zeroHash ? "" : milestone.disputeHash);
+  const [submissionDraft, setSubmissionDraft] = useState<EvidenceDraft>(defaultSubmissionDraft);
+  const [disputeDraft, setDisputeDraft] = useState<EvidenceDraft>(defaultDisputeDraft);
+  const [disputeReasonCode, setDisputeReasonCode] = useState<DisputeReasonCode>(defaultDisputeReason);
 
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({
     hash,
@@ -105,6 +137,27 @@ export function MilestoneActions({
     [isConnected, isWrongChain, milestoneId, overview.address, role, semantics]
   );
 
+  const submissionPayload = useMemo(
+    () =>
+      composeEvidencePayload({
+        mode: "submission",
+        note: submissionDraft.note,
+        references: submissionDraft.references,
+      }),
+    [submissionDraft]
+  );
+
+  const disputePayload = useMemo(
+    () =>
+      composeEvidencePayload({
+        mode: "dispute",
+        note: disputeDraft.note,
+        references: disputeDraft.references,
+        reasonCode: disputeReasonCode,
+      }),
+    [disputeDraft, disputeReasonCode]
+  );
+
   function refreshAfterWrite() {
     router.refresh();
   }
@@ -123,6 +176,67 @@ export function MilestoneActions({
         },
       }
     );
+  }
+
+  function updateReference(
+    mode: "submission" | "dispute",
+    index: number,
+    field: keyof EvidenceReferenceInput,
+    value: string
+  ) {
+    const applyUpdate = (draft: EvidenceDraft): EvidenceDraft => ({
+      ...draft,
+      references: draft.references.map((reference, referenceIndex) =>
+        referenceIndex === index
+          ? {
+              ...reference,
+              [field]: value,
+            }
+          : reference
+      ),
+    });
+
+    if (mode === "submission") {
+      setSubmissionDraft((current) => applyUpdate(current));
+      return;
+    }
+
+    setDisputeDraft((current) => applyUpdate(current));
+  }
+
+  function addReference(mode: "submission" | "dispute") {
+    const nextReference: EvidenceReferenceInput = {
+      ...defaultReference,
+      type: mode === "dispute" ? "communication" : "deliverable",
+    };
+
+    if (mode === "submission") {
+      setSubmissionDraft((current) => ({
+        ...current,
+        references: [...current.references, nextReference],
+      }));
+      return;
+    }
+
+    setDisputeDraft((current) => ({
+      ...current,
+      references: [...current.references, nextReference],
+    }));
+  }
+
+  function removeReference(mode: "submission" | "dispute", index: number) {
+    if (mode === "submission") {
+      setSubmissionDraft((current) => ({
+        ...current,
+        references: current.references.filter((_, referenceIndex) => referenceIndex !== index),
+      }));
+      return;
+    }
+
+    setDisputeDraft((current) => ({
+      ...current,
+      references: current.references.filter((_, referenceIndex) => referenceIndex !== index),
+    }));
   }
 
   return (
@@ -171,18 +285,88 @@ export function MilestoneActions({
           {semantics.canSubmit ? (
             <div className="stack-sm">
               <label className="field stack-sm">
-                <span>Evidence hash</span>
-                <input
-                  className="text-input"
-                  onChange={(event) => setEvidenceHash(event.target.value)}
-                  placeholder="0x..."
-                  value={evidenceHash}
+                <span>Public submission note</span>
+                <textarea
+                  className="text-input text-input--multiline"
+                  onChange={(event) =>
+                    setSubmissionDraft((current) => ({
+                      ...current,
+                      note: event.target.value,
+                    }))
+                  }
+                  placeholder="Public narrative describing delivered work, review scope, and expected acceptance evidence."
+                  value={submissionDraft.note}
                 />
               </label>
+
+              {submissionDraft.references.map((reference, index) => (
+                <div className="stack-sm" key={`submission-reference-${index}`}>
+                  <label className="field stack-sm">
+                    <span>Reference type</span>
+                    <select
+                      className="text-input"
+                      onChange={(event) => updateReference("submission", index, "type", event.target.value)}
+                      value={reference.type}
+                    >
+                      {evidenceReferenceTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {type}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field stack-sm">
+                    <span>Reference label</span>
+                    <input
+                      className="text-input"
+                      onChange={(event) => updateReference("submission", index, "label", event.target.value)}
+                      placeholder="e.g. Staging URL, QA report"
+                      value={reference.label}
+                    />
+                  </label>
+                  <label className="field stack-sm">
+                    <span>Reference URL</span>
+                    <input
+                      className="text-input"
+                      onChange={(event) => updateReference("submission", index, "url", event.target.value)}
+                      placeholder="https://..."
+                      value={reference.url}
+                    />
+                  </label>
+                  {submissionDraft.references.length > 1 ? (
+                    <button
+                      className="button button--ghost"
+                      onClick={() => removeReference("submission", index)}
+                      type="button"
+                    >
+                      Remove reference
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+
+              <button className="button button--ghost" onClick={() => addReference("submission")} type="button">
+                Add reference
+              </button>
+
+              <p className="status-text">
+                Public note + references are public-facing. Only the canonical hash is submitted onchain.
+              </p>
+              <p className="status-text">
+                Canonical submission hash preview: {submissionPayload.payloadHash ?? "Unavailable until payload is valid."}
+              </p>
+              {submissionPayload.errors.length > 0 ? (
+                <ul className="plain-list stack-sm">
+                  {submissionPayload.errors.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              ) : null}
+
               <button
                 className="button button--primary"
-                disabled={isBusy || isWrongChain || evidenceHash.length === 0}
-                onClick={() => runWrite("submitMilestone", [milestoneId, evidenceHash])}
+                disabled={isBusy || isWrongChain || submissionPayload.errors.length > 0 || !submissionPayload.payloadHash}
+                onClick={() => runWrite("submitMilestone", [milestoneId, submissionPayload.payloadHash])}
                 type="button"
               >
                 Submit milestone
@@ -206,18 +390,102 @@ export function MilestoneActions({
               {semantics.canDispute ? (
                 <>
                   <label className="field stack-sm">
-                    <span>Dispute hash</span>
-                    <input
+                    <span>Dispute reason code</span>
+                    <select
                       className="text-input"
-                      onChange={(event) => setDisputeHash(event.target.value)}
-                      placeholder="0x..."
-                      value={disputeHash}
+                      onChange={(event) => setDisputeReasonCode(event.target.value as DisputeReasonCode)}
+                      value={disputeReasonCode}
+                    >
+                      {disputeReasonCodes.map((code) => (
+                        <option key={code} value={code}>
+                          {code}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field stack-sm">
+                    <span>Public dispute note</span>
+                    <textarea
+                      className="text-input text-input--multiline"
+                      onChange={(event) =>
+                        setDisputeDraft((current) => ({
+                          ...current,
+                          note: event.target.value,
+                        }))
+                      }
+                      placeholder="Public rationale describing why buyer is disputing this milestone."
+                      value={disputeDraft.note}
                     />
                   </label>
+
+                  {disputeDraft.references.map((reference, index) => (
+                    <div className="stack-sm" key={`dispute-reference-${index}`}>
+                      <label className="field stack-sm">
+                        <span>Reference type</span>
+                        <select
+                          className="text-input"
+                          onChange={(event) => updateReference("dispute", index, "type", event.target.value)}
+                          value={reference.type}
+                        >
+                          {evidenceReferenceTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field stack-sm">
+                        <span>Reference label</span>
+                        <input
+                          className="text-input"
+                          onChange={(event) => updateReference("dispute", index, "label", event.target.value)}
+                          placeholder="e.g. Buyer review notes"
+                          value={reference.label}
+                        />
+                      </label>
+                      <label className="field stack-sm">
+                        <span>Reference URL</span>
+                        <input
+                          className="text-input"
+                          onChange={(event) => updateReference("dispute", index, "url", event.target.value)}
+                          placeholder="https://..."
+                          value={reference.url}
+                        />
+                      </label>
+                      {disputeDraft.references.length > 1 ? (
+                        <button
+                          className="button button--ghost"
+                          onClick={() => removeReference("dispute", index)}
+                          type="button"
+                        >
+                          Remove reference
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+
+                  <button className="button button--ghost" onClick={() => addReference("dispute")} type="button">
+                    Add dispute reference
+                  </button>
+
+                  <p className="status-text">
+                    Dispute narratives are public-facing metadata. Only the canonical hash is written onchain.
+                  </p>
+                  <p className="status-text">
+                    Canonical dispute hash preview: {disputePayload.payloadHash ?? "Unavailable until payload is valid."}
+                  </p>
+                  {disputePayload.errors.length > 0 ? (
+                    <ul className="plain-list stack-sm">
+                      {disputePayload.errors.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+
                   <button
                     className="button button--ghost"
-                    disabled={isBusy || isWrongChain || disputeHash.length === 0}
-                    onClick={() => runWrite("openDispute", [milestoneId, disputeHash])}
+                    disabled={isBusy || isWrongChain || disputePayload.errors.length > 0 || !disputePayload.payloadHash}
+                    onClick={() => runWrite("openDispute", [milestoneId, disputePayload.payloadHash])}
                     type="button"
                   >
                     Open dispute
@@ -248,5 +516,3 @@ export function MilestoneActions({
     </section>
   );
 }
-
-const zeroHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
