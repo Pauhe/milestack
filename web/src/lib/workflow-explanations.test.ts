@@ -1,18 +1,21 @@
 import { describe, expect, it } from "vitest";
 
-import type { BackendFreshnessAssessment } from "@/lib/backend";
+import type { BackendDiscoveryAssessment, BackendFreshnessAssessment } from "@/lib/backend";
 import { deriveMilestoneActionSemantics } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import {
   getActionAuthorityExplanationCopy,
   getArbiterTrustExplanationCopy,
   getDealOverviewTrustExplanationCopy,
+  getDiscoverDegradedCardCalloutCopy,
+  getDiscoverReadSurfaceCopy,
   getDisputeAuthorityExplanationCopy,
   getDisputeFinalityExplanationCopy,
   getFreshnessExplanationCopy,
   getReviewDeadlineExplanationCopy,
   getRouteGuidanceWithFreshnessOverlay,
   getTimelineTruthExplanationCopy,
+  isDiscoverCardSignalDegraded,
 } from "@/lib/workflow-explanations";
 
 function makeFreshnessAssessment(
@@ -428,6 +431,59 @@ describe("dispute authority/finality explanations", () => {
 
     expect(copy).toContain("conservative");
     expect(copy).toContain("stale");
+  });
+});
+
+describe("discover read-surface helpers", () => {
+  function makeDiscoveryAssessment(
+    overrides: Partial<BackendDiscoveryAssessment> = {}
+  ): BackendDiscoveryAssessment {
+    return {
+      state: "healthy",
+      message: "Discovery truth contract confirms informational-only listing semantics and conservative capability boundaries.",
+      ...overrides,
+    };
+  }
+
+  it("keeps authority and degraded callout conservative when freshness is stale", () => {
+    const copy = getDiscoverReadSurfaceCopy({
+      readError: null,
+    });
+
+    expect(copy.authorityBoundary).toContain("canonical authority remains buyer/seller/arbiter actions");
+    expect(copy.readFailureDetail).toContain("Escrow authority remains unchanged");
+    expect(getDiscoverDegradedCardCalloutCopy()).toContain("indexed truth signals are degraded");
+  });
+
+  it("keeps read failure detail conservative when discover fetch fails", () => {
+    const copy = getDiscoverReadSurfaceCopy({
+      readError: "Backend request failed with status 503.",
+    });
+
+    expect(copy.readFailureDetail).toContain("Discovery remains informational only");
+    expect(copy.readFailureDetail).toContain("Escrow authority is unchanged");
+  });
+
+  it("marks any degraded trust/capability signal as degraded card state", () => {
+    expect(
+      isDiscoverCardSignalDegraded({
+        capability: makeDiscoveryAssessment({ state: "healthy" }),
+        metadata: makeDiscoveryAssessment({ state: "healthy" }),
+        buyerTrust: makeDiscoveryAssessment({ state: "degraded" }),
+        sellerTrust: makeDiscoveryAssessment({ state: "healthy" }),
+        arbiterTrust: makeDiscoveryAssessment({ state: "healthy" }),
+      })
+    ).toBe(true);
+
+    expect(
+      isDiscoverCardSignalDegraded({
+        capability: makeDiscoveryAssessment({ state: "healthy" }),
+        metadata: makeDiscoveryAssessment({ state: "healthy" }),
+        buyerTrust: makeDiscoveryAssessment({ state: "healthy" }),
+        sellerTrust: makeDiscoveryAssessment({ state: "healthy" }),
+        arbiterTrust: makeDiscoveryAssessment({ state: "healthy" }),
+      })
+    ).toBe(false);
   });
 });
 

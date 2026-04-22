@@ -304,6 +304,137 @@ describe("discover route", () => {
     expect(html).toContain("Discovery truth contract is present but freshness is degraded");
   });
 
+  it("shows degraded card callout when role stats are missing even if capability/metadata are healthy", async () => {
+    mockFetchBackendJson.mockResolvedValue({
+      freshness: freshFreshness,
+      truth: {
+        listingContract: "informational_read_model_only",
+        capabilitySummary: {
+          writeActionsExposed: false,
+          authorityRankingExposed: false,
+          roleStatsAreDirectionalOnly: true,
+          metadataVisibility: {
+            state: "public",
+            degraded: false,
+            reason: null,
+          },
+        },
+        freshnessSummary: {
+          state: "healthy",
+          degraded: false,
+          reason: null,
+        },
+      },
+      items: [
+        {
+          identity: {
+            chainId: 8453,
+            address: "0x1000000000000000000000000000000000000001",
+            key: "8453:0x1000000000000000000000000000000000000001",
+          },
+          participants: {
+            buyer: "0x2000000000000000000000000000000000000002",
+            seller: "0x3000000000000000000000000000000000000003",
+            arbiter: "0x4000000000000000000000000000000000000004",
+          },
+          overview: {
+            dealStatus: 1,
+            milestoneCount: 2,
+            currentMilestoneIndex: 0,
+            activeDisputeMilestoneId: null,
+            totalFunded: "1000000",
+            totalReleasedToSeller: "0",
+            totalRefundedToBuyer: "0",
+            totalFeesCollected: "0",
+          },
+          milestones: {
+            totalCount: 2,
+            submittedCount: 1,
+            terminalCount: 0,
+            current: {
+              milestoneId: 0,
+              status: 2,
+              amount: "500000",
+              reviewDeadline: "1750000000",
+            },
+          },
+          metadata: {
+            state: "verified",
+            verified: true,
+            degraded: false,
+            metadataHash: "0xmeta",
+            metadataUrl: "https://example.com/metadata.json",
+            payloadPresent: true,
+            updatedAtBlock: "100",
+            error: null,
+          },
+          capability: {
+            listingMode: "informational",
+            writeActionsExposed: false,
+            authorityRankingExposed: false,
+            trustClaimsLimitedToIndexedTruth: true,
+          },
+          roleStats: {
+            buyer: {
+              completedDealsCount: 0,
+              completedMilestonesCount: 0,
+              disputeCount: 0,
+              disputeWinsCount: 0,
+              disputeLossesCount: 0,
+              resolvedDisputeCount: 0,
+              unresolvedDisputeCount: 0,
+              disputeSplitCount: 0,
+              cancellationCount: 0,
+              totalVolume: "0",
+              updatedAtBlock: null,
+              truthState: "missing",
+              degraded: true,
+              reason: "No indexed buyer role stats available.",
+            },
+            seller: {
+              completedDealsCount: 1,
+              completedMilestonesCount: 1,
+              disputeCount: 0,
+              disputeWinsCount: 0,
+              disputeLossesCount: 0,
+              resolvedDisputeCount: 0,
+              unresolvedDisputeCount: 0,
+              disputeSplitCount: 0,
+              cancellationCount: 0,
+              totalVolume: "1000000",
+              updatedAtBlock: "100",
+              truthState: "available",
+              degraded: false,
+              reason: null,
+            },
+            arbiter: {
+              completedDealsCount: 0,
+              completedMilestonesCount: 0,
+              disputeCount: 0,
+              disputeWinsCount: 0,
+              disputeLossesCount: 0,
+              resolvedDisputeCount: 0,
+              unresolvedDisputeCount: 0,
+              disputeSplitCount: 0,
+              cancellationCount: 0,
+              totalVolume: "0",
+              updatedAtBlock: "100",
+              truthState: "available",
+              degraded: false,
+              reason: null,
+            },
+          },
+        },
+      ],
+    });
+
+    const element = await DiscoverPage();
+    const html = renderToStaticMarkup(element);
+
+    expect(html).toContain("data-testid=\"discover-card-grid\"");
+    expect(html).toContain("One or more indexed truth signals are degraded");
+  });
+
   it("renders read failure and empty-state conservatively when /discover is unavailable", async () => {
     mockFetchBackendJson.mockRejectedValue(new Error("Backend request failed with status 503."));
 

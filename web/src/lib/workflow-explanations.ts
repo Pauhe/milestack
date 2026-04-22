@@ -1,4 +1,6 @@
 import type {
+  BackendDiscoveryAssessment,
+  BackendDiscoveryMetadataAssessment,
   BackendFreshnessAssessment,
   BackendFreshnessSurface,
   BackendReputationRoleStats,
@@ -341,4 +343,49 @@ export function getDisputeFinalityExplanationCopy(input: DisputeFinalityExplanat
   }
 
   return "Dispute finality remains pending until arbiter resolution guidance is available.";
+}
+
+export type DiscoverReadSurfaceCopyInput = {
+  readError: string | null;
+};
+
+export type DiscoverReadSurfaceCopy = {
+  authorityBoundary: string;
+  readFailureDetail: string;
+};
+
+export function getDiscoverReadSurfaceCopy(input: DiscoverReadSurfaceCopyInput): DiscoverReadSurfaceCopy {
+  const authorityBoundary =
+    "The canonical authority remains buyer/seller/arbiter actions on escrow routes. Discovery cards only summarize indexed public data.";
+
+  const readFailureDetail = input.readError
+    ? "Discovery remains informational only. Escrow authority is unchanged and still enforced onchain."
+    : "Discovery read contract is available. Escrow authority remains unchanged and still enforced onchain.";
+
+  return {
+    authorityBoundary,
+    readFailureDetail,
+  };
+}
+
+export function getDiscoverDegradedCardCalloutCopy(): string {
+  return "One or more indexed truth signals are degraded. Use deal/milestone/dispute routes for canonical live authority and verification details.";
+}
+
+export type DiscoverCardSignalAssessmentInput = {
+  capability: BackendDiscoveryAssessment;
+  metadata: BackendDiscoveryMetadataAssessment;
+  buyerTrust: BackendDiscoveryAssessment;
+  sellerTrust: BackendDiscoveryAssessment;
+  arbiterTrust: BackendDiscoveryAssessment;
+};
+
+export function isDiscoverCardSignalDegraded(input: DiscoverCardSignalAssessmentInput): boolean {
+  return (
+    input.capability.state === "degraded" ||
+    input.metadata.state === "degraded" ||
+    input.buyerTrust.state === "degraded" ||
+    input.sellerTrust.state === "degraded" ||
+    input.arbiterTrust.state === "degraded"
+  );
 }

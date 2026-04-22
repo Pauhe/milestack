@@ -11,10 +11,16 @@ import {
   getDiscoveryMetadataAssessment,
   getDiscoveryRoleStatsAssessment,
 } from "@/lib/backend";
+import {
+  getDiscoverDegradedCardCalloutCopy,
+  getDiscoverReadSurfaceCopy,
+  isDiscoverCardSignalDegraded,
+} from "@/lib/workflow-explanations";
 import { formatUsdc } from "@/lib/format";
 import { getDealStatusLabel, getMilestoneStatusLabel } from "@/lib/status";
 import {
   WorkflowCallout,
+  WorkflowFreshnessBanner,
   WorkflowSectionHeader,
   WorkflowStatusRow,
   WorkflowSurfacePanel,
@@ -38,6 +44,7 @@ export default async function DiscoverPage() {
   const freshnessBanner = getBackendFreshnessBanner("deal", freshnessAssessment);
   const cards = discovery?.items ?? [];
   const discoveryContract = getDiscoveryContractAssessment(discovery?.truth, freshnessAssessment);
+  const discoverCopy = getDiscoverReadSurfaceCopy({ readError });
 
   return (
     <section className="stack-lg" data-testid="discover-page">
@@ -51,23 +58,19 @@ export default async function DiscoverPage() {
       </div>
 
       {freshnessBanner ? (
-        <article className="panel stack-sm" data-testid="discover-freshness-banner">
-          <h2>{freshnessBanner.title}</h2>
-          <p>{freshnessBanner.body}</p>
-          {freshnessAssessment.error ? (
-            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
-          ) : null}
-        </article>
+        <WorkflowFreshnessBanner
+          title={freshnessBanner.title}
+          body={freshnessBanner.body}
+          detail={freshnessAssessment.error}
+          testId="discover-freshness-banner"
+        />
       ) : null}
 
       {readError ? (
         <article className="panel stack-sm" data-testid="discover-read-failure-panel">
           <h2>Discovery read failure</h2>
           <p>{readError}</p>
-          <p className="status-text">
-            Discovery remains informational only. Escrow authority is unchanged and still enforced
-            onchain.
-          </p>
+          <p className="status-text">{discoverCopy.readFailureDetail}</p>
         </article>
       ) : null}
 
@@ -80,8 +83,7 @@ export default async function DiscoverPage() {
         <WorkflowStatusRow label="Contract state" value={discoveryContract.state} />
         <WorkflowStatusRow label="Interpretation" value={discoveryContract.message} />
         <WorkflowCallout tone="trust" title="Authority boundary" testId="discover-authority-callout">
-          The canonical authority remains buyer/seller/arbiter actions on escrow routes. Discovery
-          cards only summarize indexed public data.
+          {discoverCopy.authorityBoundary}
         </WorkflowCallout>
       </WorkflowSurfacePanel>
 
@@ -170,10 +172,15 @@ export default async function DiscoverPage() {
                   testId={`discover-arbiter-trust-${card.identity.key}`}
                 />
 
-                {capability.state === "degraded" || metadata.state === "degraded" ? (
+                {isDiscoverCardSignalDegraded({
+                  capability,
+                  metadata,
+                  buyerTrust,
+                  sellerTrust,
+                  arbiterTrust,
+                }) ? (
                   <WorkflowCallout tone="degraded" title="Degraded discovery signal">
-                    One or more indexed truth signals are degraded. Use deal/milestone/dispute routes
-                    for canonical live authority and verification details.
+                    {getDiscoverDegradedCardCalloutCopy()}
                   </WorkflowCallout>
                 ) : null}
               </WorkflowSurfacePanel>
