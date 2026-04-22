@@ -57,6 +57,10 @@ contract MilestoneEscrowInternalHarness is MilestoneEscrow {
         return _isAuthorized(actor, action);
     }
 
+    function exposedIsAuthorizedRaw(address actor, uint8 actionRaw) external view returns (bool) {
+        return _isAuthorized(actor, AuthorityAction(actionRaw));
+    }
+
     function exposedIsAuthorizedForRole(
         address actor,
         address principal,
@@ -148,6 +152,22 @@ contract MilestoneEscrowSubmissionTest is Test {
 
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
+
+        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
+    }
+
+    function _deployZeroMilestoneEscrow() internal returns (MilestoneEscrow deployedEscrow) {
+        DealConfig memory config = DealConfig({
+            buyer: BUYER,
+            seller: SELLER,
+            arbiter: ARBITER,
+            token: address(token),
+            feeRecipient: FEE_RECIPIENT,
+            protocolFeeBps: 100,
+            metadataHash: keccak256("zero-milestone-deal")
+        });
+
+        MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](0);
 
         deployedEscrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
     }
@@ -337,6 +357,18 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.prank(BUYER);
         vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
         singleMilestoneEscrow.fundAllMilestones();
+    }
+
+    function testFundAllMilestonesRevertsInvalidIndexWhenNoMilestonesConfigured() public {
+        MilestoneEscrow zeroMilestoneEscrow = _deployZeroMilestoneEscrow();
+
+        token.mint(BUYER, 1_000e6);
+        vm.prank(BUYER);
+        token.approve(address(zeroMilestoneEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneIndex.selector));
+        zeroMilestoneEscrow.fundAllMilestones();
     }
 
     function testNonBuyerCannotApproveMilestone() public {
@@ -1386,12 +1418,20 @@ contract MilestoneEscrowSubmissionTest is Test {
         );
     }
 
+    function testInternalIsAuthorizedReturnsFalseForCancelActionWhenNoBuyerOrSellerAuthority() public {
+        MilestoneEscrowInternalHarness harness = _deployInternalHarnessWidened(address(0xD1));
+
+        assertFalse(
+            harness.exposedIsAuthorized(address(0xD2), AuthorityAction.Cancel),
+            "unknown actor should fail both buyer and seller cancel authorization paths"
+        );
+    }
+
     function testInternalIsAuthorizedReturnsFalseForUnknownAction() public {
         MilestoneEscrowInternalHarness harness = _deployInternalHarnessMvp();
 
-        assertFalse(
-            harness.exposedIsAuthorized(address(0xD2), AuthorityAction(uint8(type(AuthorityAction).max)))
-        );
+        vm.expectRevert();
+        harness.exposedIsAuthorizedRaw(address(0xD2), uint8(type(AuthorityAction).max) + 1);
     }
 
     function testInternalAllowedPermissionsReturnsZeroForObserverRole() public {

@@ -135,8 +135,6 @@ contract MilestoneEscrowHandler is Test {
 
     function _deriveMilestoneId(uint256 rawMilestoneId) internal view returns (uint256) {
         uint256 milestoneCount = escrow.milestoneCount();
-        if (milestoneCount == 0) return 0;
-
         return rawMilestoneId % (milestoneCount + 1);
     }
 
@@ -184,11 +182,8 @@ contract MilestoneEscrowHandlerZeroMilestones is Test {
         escrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
     }
 
-    function deriveMilestoneIdForTest(uint256 rawMilestoneId) external view returns (uint256) {
-        uint256 milestoneCount = escrow.milestoneCount();
-        if (milestoneCount == 0) return 0;
-
-        return rawMilestoneId % (milestoneCount + 1);
+    function deriveMilestoneIdForTest(uint256) external pure returns (uint256) {
+        return 0;
     }
 
     function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {

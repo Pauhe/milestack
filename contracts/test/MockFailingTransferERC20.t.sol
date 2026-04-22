@@ -50,6 +50,14 @@ contract MockFailingTransferERC20Test is Test {
         assertEq(token.allowance(FROM, address(this)), 200e6, "allowance should decrement");
     }
 
+    function testApproveReturnsTrueAndStoresAllowance() public {
+        vm.prank(FROM);
+        bool ok = token.approve(address(this), 321e6);
+
+        assertTrue(ok, "approve should return true");
+        assertEq(token.allowance(FROM, address(this)), 321e6, "approve should set allowance");
+    }
+
     function testTransferAlwaysReturnsFalse() public {
         bool ok = token.transfer(TO, 1);
 
