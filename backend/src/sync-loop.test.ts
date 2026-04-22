@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { setIndexerPublicClient, resetIndexerPublicClient } from "./indexer.js";
+import { resetIndexerPublicClient, setIndexerPublicClient } from "./indexer.js";
 import { syncLoopState } from "./sync-loop.js";
 
 function resetLoopState() {
@@ -48,6 +48,34 @@ test("runSyncOnce remains safe when re-entered while already syncing", async () 
   assert.equal(module.syncLoopState.lastSyncAt, before);
 
   module.syncLoopState.isSyncing = false;
+});
+
+test("runSyncOnce captures sanitized failure errors and always resets active sync state", async () => {
+  const module = await import(`./sync-loop.js?sync-loop-failure-${Date.now()}`);
+  const rawError = "sync failed\nwith   irregular\tspacing " + "x".repeat(560);
+
+  setIndexerPublicClient({
+    chain: { id: 31337 },
+    getBlockNumber: async () => {
+      throw new Error(rawError);
+    },
+    getLogs: async () => [],
+  });
+
+  try {
+    await assert.rejects(() => module.runSyncOnce(), /sync failed/);
+
+    assert.equal(module.syncLoopState.isSyncing, false);
+    assert.equal(module.syncLoopState.activeSyncStartedAt, null);
+    assert.equal(module.syncLoopState.lastSyncAt, null);
+    assert.ok(module.syncLoopState.lastSyncError);
+    assert.equal(module.syncLoopState.lastSyncError?.includes("\n"), false);
+    assert.equal(module.syncLoopState.lastSyncError?.includes("\t"), false);
+    assert.equal(module.syncLoopState.lastSyncError?.length, 512);
+    assert.match(module.syncLoopState.lastSyncError ?? "", /sync failed with irregular spacing/);
+  } finally {
+    resetIndexerPublicClient();
+  }
 });
 
 test("startSyncLoop returns an interval handle that can be cleared", async () => {

@@ -17,7 +17,6 @@ import {
   syncIndexer,
 } from "./indexer.js";
 import {
-  clearMetadataCache,
   getEscrow,
   getEventCount,
   getMilestone,
@@ -342,20 +341,260 @@ test("syncIndexer marks stale status when metadata verification is degraded", as
   }
 });
 
-test("rebuildIndexerFromPersistedEvents keeps degraded status visible when metadata cache is missing", async () => {
+test("syncIndexer ignores non-EscrowCreated factory logs and malformed EscrowCreated payloads", async () => {
   resetDb();
 
   const client = createMockClient();
-  seedHistory(client, { includeEscrowCreated: true });
+  const factoryAddress = deploymentManifest.contracts.escrowFactory.address;
+
+  client.seed(factoryAddress, [createNonEscrowFactoryLog(50n, makeTxHash(5001), 0)]);
 
   setIndexerPublicClient(client);
 
   try {
-    await syncIndexer();
-    clearMetadataCache();
+    const result = await syncIndexer();
 
+    assert.equal(result.insertedEventCount, 0);
+    assert.equal(result.escrowsIndexed, 0);
+    assert.equal(getEventCount(), 0);
+
+    const health = getSyncHealthState();
+    assert.equal(health.status, "healthy");
+    assert.equal(health.lastSuccessfulBlock, 200n);
+  } finally {
+    resetIndexerPublicClient();
+  }
+});
+
+test("syncIndexer ignores escrow logs from unknown addresses and untracked event topics", async () => {
+  resetDb();
+
+  const client = createMockClient();
+  const factoryAddress = deploymentManifest.contracts.escrowFactory.address;
+  const unknownEscrow = makeAddress(777);
+
+  client.seed(factoryAddress, [
+    createLog(
+      escrowFactoryAbi,
+      "EscrowCreated",
+      {
+        escrow: ESCROW_ADDRESS,
+        buyer: BUYER,
+        seller: SELLER,
+        arbiter: ARBITER,
+        token: TOKEN,
+        milestoneCount: 1n,
+        metadataHash: METADATA_HASH,
+      },
+      80n,
+      makeTxHash(8001),
+      0
+    ),
+  ]);
+
+  client.seed(ESCROW_ADDRESS, [createUntrackedMilestoneEscrowLog(ESCROW_ADDRESS, 81n, makeTxHash(8002), 0)]);
+  client.seed(unknownEscrow, [createUnknownEscrowEventLog(unknownEscrow, 82n, makeTxHash(8003), 0)]);
+
+  setIndexerPublicClient(client);
+
+  try {
+    const result = await syncIndexer();
+
+    assert.equal(result.insertedEventCount, 1, "only EscrowCreated should persist");
+    assert.equal(getEventCount(), 1);
+
+    const escrow = getEscrow(31337, ESCROW_ADDRESS);
+    assert.ok(escrow);
+    assert.equal(escrow.total_funded, "0");
+
+    const milestone = getMilestone(31337, ESCROW_ADDRESS, 0);
+    assert.ok(milestone);
+    assert.equal(milestone.status, 0);
+  } finally {
+    resetIndexerPublicClient();
+  }
+});
+
+test("rebuildIndexerFromPersistedEvents tolerates orphan lifecycle events and still persists healthy outcome", async () => {
+  resetDb();
+
+  const chainId = 31337;
+  const client = createMockClient();
+  setIndexerPublicClient(client);
+
+  db.prepare(
+    `
+      INSERT INTO events (
+        chain_id,
+        block_number,
+        tx_hash,
+        log_index,
+        escrow_address,
+        event_name,
+        summary,
+        payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  ).run(chainId, "42", makeTxHash(4200), "0", ESCROW_ADDRESS, "MilestoneFunded", "Buyer funded milestone", JSON.stringify({ milestoneId: 0, amount: "1000" }));
+
+  patchSyncHealthState({
+    status: "healthy",
+    phase: "idle",
+    lastSuccessfulBlock: 42n,
+    chainHeadSeen: 42n,
+    lagBlocks: 0n,
+    lastError: null,
+  });
+
+  const result = await rebuildIndexerFromPersistedEvents();
+
+  assert.equal(result.replayedEventCount, 1);
+  assert.equal(result.escrowsIndexed, 0);
+  assert.equal(getEscrow(31337, ESCROW_ADDRESS), undefined);
+
+  const health = getSyncHealthState();
+  assert.equal(health.status, "healthy");
+  assert.equal(health.phase, "idle");
+
+  resetIndexerPublicClient();
+});
+
+test("rebuildIndexerFromPersistedEvents fails when payload_json is not an object", async () => {
+  resetDb();
+
+  const chainId = 31337;
+  const client = createMockClient();
+  setIndexerPublicClient(client);
+
+  db.prepare(
+    `
+      INSERT INTO events (
+        chain_id,
+        block_number,
+        tx_hash,
+        log_index,
+        escrow_address,
+        event_name,
+        summary,
+        payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  ).run(chainId, "11", makeTxHash(1100), "0", ESCROW_ADDRESS, "EscrowCreated", "Escrow deployed", JSON.stringify(["not", "object"]));
+
+  patchSyncHealthState({
+    status: "healthy",
+    phase: "idle",
+    lastSuccessfulBlock: 11n,
+    chainHeadSeen: 11n,
+    lagBlocks: 0n,
+    lastError: null,
+  });
+
+  await assert.rejects(() => rebuildIndexerFromPersistedEvents(), /Malformed payload_json object/);
+
+  const health = getSyncHealthState();
+  assert.equal(health.status, "failed");
+  assert.equal(health.phase, "rebuild_projections");
+
+  resetIndexerPublicClient();
+});
+
+test("rebuildIndexerFromPersistedEvents applies dispute lifecycle events and metadata fallback behavior", async () => {
+  resetDb();
+
+  const client = createMockClient();
+  const chainId = 31337;
+  const metadataHashNoPayload = "0x" + "ab".repeat(32);
+
+  client.seed(deploymentManifest.contracts.escrowFactory.address, []);
+  setIndexerPublicClient(client);
+
+  db.prepare(
+    `
+      INSERT INTO events (
+        chain_id,
+        block_number,
+        tx_hash,
+        log_index,
+        escrow_address,
+        event_name,
+        summary,
+        payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  ).run(
+    chainId,
+    "10",
+    makeTxHash(10000),
+    "0",
+    ESCROW_ADDRESS,
+    "EscrowCreated",
+    "Escrow deployed",
+    JSON.stringify({
+      escrow: ESCROW_ADDRESS,
+      buyer: BUYER,
+      seller: SELLER,
+      arbiter: ARBITER,
+      token: TOKEN,
+      milestoneCount: "2",
+      metadataHash: metadataHashNoPayload,
+    })
+  );
+
+  const insertEventRow = db.prepare(
+    `
+      INSERT INTO events (
+        chain_id,
+        block_number,
+        tx_hash,
+        log_index,
+        escrow_address,
+        event_name,
+        summary,
+        payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  );
+
+  insertEventRow.run(chainId, "11", makeTxHash(10001), "0", ESCROW_ADDRESS, "MilestoneFunded", "Buyer funded milestone", JSON.stringify({ milestoneId: "0", amount: "111" }));
+  insertEventRow.run(chainId, "12", makeTxHash(10002), "0", ESCROW_ADDRESS, "MilestoneSubmitted", "Seller submitted milestone evidence", JSON.stringify({ milestoneId: "0", evidenceHash: zeroHash, submittedAt: "12", reviewDeadline: "112" }));
+  insertEventRow.run(chainId, "13", makeTxHash(10003), "0", ESCROW_ADDRESS, "MilestoneDisputed", "Buyer opened a dispute", JSON.stringify({ milestoneId: "0", disputeHash: zeroHash }));
+  insertEventRow.run(chainId, "14", makeTxHash(10004), "0", ESCROW_ADDRESS, "DisputeResolved", "Arbiter resolved disputed milestone", JSON.stringify({ milestoneId: "0", buyerAmount: "0", sellerAmount: "100", feeAmount: "11" }));
+  insertEventRow.run(chainId, "15", makeTxHash(10005), "0", ESCROW_ADDRESS, "MilestoneCancelled", "Remaining milestone cancelled", JSON.stringify({ milestoneId: "1" }));
+  insertEventRow.run(chainId, "16", makeTxHash(10006), "0", ESCROW_ADDRESS, "DealCancelled", "Deal cancelled", JSON.stringify({}));
+
+  upsertMetadataCache({
+    metadataHash: metadataHashNoPayload,
+    metadataUrl: "mock://degraded",
+    verified: false,
+    payloadJson: JSON.stringify({ milestones: [{ id: 0, title: 12345, description: "ok" }] }),
+    error: "signature mismatch",
+    updatedAtBlock: "16",
+  });
+
+  try {
     const result = await rebuildIndexerFromPersistedEvents();
-    assert.equal(result.replayedEventCount, 6);
+
+    assert.equal(result.replayedEventCount, 7);
+
+    const escrow = getEscrow(31337, ESCROW_ADDRESS);
+    assert.ok(escrow);
+    assert.equal(escrow.deal_status, 3);
+    assert.equal(escrow.current_milestone_index, 1);
+    assert.equal(escrow.active_dispute_milestone_id, null);
+    assert.equal(escrow.total_released_to_seller, "100");
+    assert.equal(escrow.total_fees_collected, "11");
+
+    const milestone0 = getMilestone(31337, ESCROW_ADDRESS, 0);
+    assert.ok(milestone0);
+    assert.equal(milestone0.status, 7);
+    assert.equal(milestone0.amount, "111");
+    assert.equal(milestone0.metadata_title, null, "non-string metadata title should fail soft to null");
+    assert.equal(milestone0.metadata_description, "ok");
+
+    const milestone1 = getMilestone(31337, ESCROW_ADDRESS, 1);
+    assert.ok(milestone1);
+    assert.equal(milestone1.status, 9);
 
     const health = getSyncHealthState();
     assert.equal(health.status, "stale");
@@ -485,6 +724,63 @@ function seedHistory(client: ReturnType<typeof createMockClient>, options: { inc
   ]);
 }
 
+function createNonEscrowFactoryLog(blockNumber: bigint, txHash: `0x${string}`, logIndex: number): MockLog {
+  return createLog(
+    escrowFactoryAbi,
+    "EscrowCreatedWidened",
+    {
+      escrow: ESCROW_ADDRESS,
+      authorityModelVersion: 1,
+      participantCount: 2,
+      delegationCount: 0,
+    },
+    blockNumber,
+    txHash,
+    logIndex
+  );
+}
+
+function createUnknownEscrowEventLog(address: Address, blockNumber: bigint, txHash: `0x${string}`, logIndex: number): MockLog {
+  return {
+    address,
+    data: "0x",
+    topics: [zeroHash],
+    blockNumber,
+    transactionHash: txHash,
+    logIndex,
+  };
+}
+
+function createUntrackedMilestoneEscrowLog(address: Address, blockNumber: bigint, txHash: `0x${string}`, logIndex: number): MockLog {
+  return createLog(
+    milestoneEscrowAbi,
+    "WidenedAuthorityConfigured",
+    {
+      authorityModelVersion: 1,
+      participantCount: 2,
+      delegationCount: 0,
+    },
+    blockNumber,
+    txHash,
+    logIndex
+  );
+}
+
+function createEscrowCreatedWithoutEscrowAddressLog(blockNumber: bigint, txHash: `0x${string}`, logIndex: number): MockLog {
+  return {
+    data: (padAddress(ARBITER) + padAddress(TOKEN).slice(2) + padUint(1n).slice(2) + METADATA_HASH.slice(2)) as `0x${string}`,
+    topics: [
+      "0x30f3f0dbfdf5d7446ce512f08e8f4542e7394ac6db1681e4ac88580e4332dcac",
+      "0x0000000000000000000000000000000000000000000000000000000000000000",
+      padAddress(BUYER),
+      padAddress(SELLER),
+    ],
+    blockNumber,
+    transactionHash: txHash,
+    logIndex,
+  };
+}
+
 function createLog(
   abi: readonly unknown[],
   eventName: string,
@@ -529,6 +825,10 @@ function encodeNonIndexedData(eventName: string, args: Record<string, PrimitiveA
     return padAddress(arbiter) + padAddress(token).slice(2) + padUint(milestoneCount).slice(2) + metadataHash.slice(2) as `0x${string}`;
   }
 
+  if (eventName === "EscrowCreatedWidened") {
+    return (padUint(BigInt(args.participantCount ?? 0n)) + padUint(BigInt(args.delegationCount ?? 0n)).slice(2)) as `0x${string}`;
+  }
+
   if (eventName === "MilestoneFunded") {
     return padUint(BigInt(args.amount ?? 0n));
   }
@@ -543,6 +843,10 @@ function encodeNonIndexedData(eventName: string, args: Record<string, PrimitiveA
 
   if (eventName === "MilestoneClaimed") {
     return (padUint(BigInt(args.sellerAmount ?? 0n)) + padUint(BigInt(args.feeAmount ?? 0n)).slice(2)) as `0x${string}`;
+  }
+
+  if (eventName === "WidenedAuthorityConfigured") {
+    return (padUint(BigInt(args.participantCount ?? 0n)) + padUint(BigInt(args.delegationCount ?? 0n)).slice(2)) as `0x${string}`;
   }
 
   return "0x";
