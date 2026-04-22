@@ -87,8 +87,9 @@ const trackedEventNames = new Set([
 type PublicClientLike = {
   chain: { id: number };
   getBlockNumber: () => Promise<bigint>;
-  getLogs: (input: { address: Address; fromBlock: bigint }) => Promise<
+  getLogs: (input: { address: Address | Address[]; fromBlock: bigint }) => Promise<
     Array<{
+      address?: Address;
       data: `0x${string}`;
       topics: readonly `0x${string}`[];
       blockNumber?: bigint;
@@ -245,16 +246,24 @@ async function discoverLogs(fromBlockExclusive: bigint) {
     });
   }
 
-  const knownEscrows = new Set([...listKnownEscrows(activePublicClient.chain.id), ...discoveredEscrows]);
+  const knownEscrows = [...new Set([...listKnownEscrows(activePublicClient.chain.id), ...discoveredEscrows])];
 
   const decodedEscrowLogs: DecodedLog[] = [];
-  for (const escrowAddress of knownEscrows) {
+
+  if (knownEscrows.length > 0) {
+    const escrowAddressSet = new Set(knownEscrows);
+
     const escrowLogs = await activePublicClient.getLogs({
-      address: escrowAddress as Address,
+      address: knownEscrows as Address[],
       fromBlock,
     });
 
     for (const log of escrowLogs) {
+      const resolvedEscrowAddress = log.address?.toLowerCase();
+      if (!resolvedEscrowAddress || !escrowAddressSet.has(resolvedEscrowAddress)) {
+        continue;
+      }
+
       const decoded = decodeEventLog({
         abi: milestoneEscrowAbi,
         data: log.data,
@@ -267,7 +276,7 @@ async function discoverLogs(fromBlockExclusive: bigint) {
 
       decodedEscrowLogs.push({
         chainId: activePublicClient.chain.id,
-        escrowAddress,
+        escrowAddress: resolvedEscrowAddress,
         blockNumber: String(log.blockNumber ?? 0n),
         txHash: log.transactionHash ?? zeroHash,
         logIndex: String(log.logIndex ?? 0),

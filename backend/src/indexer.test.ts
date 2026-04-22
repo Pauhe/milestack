@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { encodeEventTopics, keccak256, stringToHex, zeroAddress, zeroHash } from "viem";
+import { type Address, encodeEventTopics, keccak256, stringToHex, zeroAddress, zeroHash } from "viem";
 
 import { escrowFactoryAbi } from "./abi/escrowFactoryAbi.js";
 import { milestoneEscrowAbi } from "./abi/milestoneEscrowAbi.js";
@@ -119,6 +119,71 @@ test("syncIndexer is replay-safe and preserves deterministic projections across 
     assert.ok(sellerStatsAfterRebuild);
     assert.equal(sellerStatsAfterRebuild.completed_deals_count, 1);
     assert.equal(sellerStatsAfterRebuild.completed_milestones_count, 1);
+  } finally {
+    resetIndexerPublicClient();
+  }
+});
+
+test("syncIndexer batches escrow log discovery into bounded RPC fan-out for high known-escrow sets", async () => {
+  resetDb();
+
+  const client = createMockClient();
+
+  const factoryAddress = deploymentManifest.contracts.escrowFactory.address;
+  const highEscrowCount = 24;
+  const seededEscrows = Array.from({ length: highEscrowCount }, (_, index) => makeAddress(index + 1));
+
+  client.seed(
+    factoryAddress,
+    seededEscrows.map((escrowAddress, index) =>
+      createLog(
+        escrowFactoryAbi,
+        "EscrowCreated",
+        {
+          escrow: escrowAddress,
+          buyer: BUYER,
+          seller: SELLER,
+          arbiter: ARBITER,
+          token: TOKEN,
+          milestoneCount: 1n,
+          metadataHash: METADATA_HASH,
+        },
+        100n + BigInt(index),
+        makeTxHash(1000 + index),
+        0
+      )
+    )
+  );
+
+  seededEscrows.forEach((escrowAddress, index) => {
+    client.seed(escrowAddress, [
+      createLog(
+        milestoneEscrowAbi,
+        "MilestoneFunded",
+        { milestoneId: 0n, amount: BigInt(1000 + index) },
+150n + BigInt(index),
+        makeTxHash(2000 + index),
+        0
+      ),
+    ]);
+  });
+
+  setIndexerPublicClient(client);
+
+  try {
+    const firstRun = await syncIndexer();
+
+    assert.equal(firstRun.insertedEventCount, highEscrowCount * 2);
+    assert.equal(getEventCount(), highEscrowCount * 2);
+    assert.equal(client.getEscrowGetLogsCallCount(), 1, "known escrows should be fetched in one batched getLogs call");
+
+    const secondRun = await syncIndexer();
+    assert.equal(secondRun.insertedEventCount, 0, "overlap replay remains idempotent");
+    assert.equal(secondRun.replayedEventCount, highEscrowCount * 2);
+    assert.equal(getEventCount(), highEscrowCount * 2);
+
+    assert.equal(client.getEscrowGetLogsCallCount(), 2, "each sync should make one escrow batched getLogs call");
+    assert.equal(client.getLogsCallCount(), 4, "two syncs should call getLogs for factory + escrow batches");
   } finally {
     resetIndexerPublicClient();
   }
@@ -313,14 +378,31 @@ function resetDb() {
 
 function createMockClient() {
   const logsByAddress = new Map<string, MockLog[]>();
+  const getLogsCalls: Array<{ addresses: string[]; fromBlock?: bigint }> = [];
 
   return {
     chain: { id: 31337 },
     getBlockNumber: async () => 200n,
-    getLogs: async ({ address, fromBlock }: { address: string; fromBlock?: bigint }) => {
-      const logs = logsByAddress.get(address.toLowerCase()) ?? [];
+    getLogs: async ({ address, fromBlock }: { address: string | readonly string[]; fromBlock?: bigint }) => {
+      const addresses = (Array.isArray(address) ? [...address] : [address]).map((item) => item.toLowerCase());
+      getLogsCalls.push({ addresses, fromBlock });
+
       const start = fromBlock ?? 0n;
-      return logs.filter((item) => item.blockNumber >= start);
+      const logs = addresses.flatMap((item) => logsByAddress.get(item) ?? []);
+
+      return logs
+        .filter((item) => item.blockNumber >= start)
+        .sort((a, b) => {
+          if (a.blockNumber !== b.blockNumber) {
+            return a.blockNumber < b.blockNumber ? -1 : 1;
+          }
+
+          if (a.transactionHash !== b.transactionHash) {
+            return a.transactionHash.localeCompare(b.transactionHash);
+          }
+
+          return a.logIndex - b.logIndex;
+        });
     },
     multicall: async () => {
       throw new Error("multicall not expected in event-driven rebuild tests");
@@ -329,12 +411,30 @@ function createMockClient() {
       throw new Error("readContract not expected in event-driven rebuild tests");
     },
     seed(address: string, logs: MockLog[]) {
-      logsByAddress.set(address.toLowerCase(), logs);
+      const normalizedAddress = address.toLowerCase();
+      logsByAddress.set(
+        normalizedAddress,
+        logs.map((log) => ({
+          ...log,
+          address: normalizedAddress as Address,
+        }))
+      );
+    },
+    getLogsCallCount() {
+      return getLogsCalls.length;
+    },
+    getEscrowGetLogsCallCount() {
+      const factoryAddress = deploymentManifest.contracts.escrowFactory.address.toLowerCase();
+      return getLogsCalls.filter((call) => !call.addresses.includes(factoryAddress)).length;
+    },
+    getLogsCalls() {
+      return [...getLogsCalls];
     },
   };
 }
 
 type MockLog = {
+  address?: Address;
   data: `0x${string}`;
   topics: [signature: `0x${string}`, ...args: `0x${string}`[]];
   blockNumber: bigint;
@@ -446,6 +546,14 @@ function encodeNonIndexedData(eventName: string, args: Record<string, PrimitiveA
   }
 
   return "0x";
+}
+
+function makeAddress(index: number): Address {
+  return `0x${index.toString(16).padStart(40, "0")}` as Address;
+}
+
+function makeTxHash(index: number): `0x${string}` {
+  return `0x${index.toString(16).padStart(64, "0")}`;
 }
 
 function padAddress(value: string): `0x${string}` {
