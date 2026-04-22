@@ -209,7 +209,7 @@ Because Milestack will eventually hold real money, the plan intentionally treats
 
 - canary deals complete successfully end to end
 - no indexing drift or alert blind spots are discovered
-- incident and rollback procedures have been exercised at least once for offchain systems
+- incident and offchain-only rollback procedures have been exercised at least once for backend/web/indexer systems
 
 ### Evidence boundary (fail-closed)
 
@@ -219,6 +219,15 @@ Current executable launch/no-launch evidence in-repo is rehearsal-local and must
 - `bash scripts/verify-s03-operability.sh`
 - `deployments/rehearsal-local/rehearsal-recovery-verification.json`
 - `deployments/rehearsal-local/operability-verification.json`
+- `/health.sync.freshness`
+- `/health.sync.degraded`
+- `/health.sync.status`
+- `/health.sync.phase`
+- `/health.sync.lagBlocks`
+- `/health.sync.lastError`
+
+If canary abort thresholds are breached, verdict is no-launch until S02/S03 pass again with fresh rehearsal-local artifacts.
+Rollback remains offchain-only rollback; contract-state rollback is out of scope for this plan.
 
 ## 12. Phase 9: Production Readiness Review
 
