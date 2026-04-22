@@ -18,6 +18,7 @@ const writeState = vi.hoisted(() => ({
   hash: null as `0x${string}` | null,
   error: null as Error | null,
   isPending: false,
+  isConfirming: false,
 }));
 
 const connectMock = vi.hoisted(() => vi.fn());
@@ -43,7 +44,7 @@ vi.mock("wagmi", () => ({
     writeContract: writeContractMock,
   }),
   useWaitForTransactionReceipt: () => ({
-    isLoading: false,
+    isLoading: writeState.isConfirming,
     data: null,
   }),
 }));
@@ -91,18 +92,26 @@ describe("deal actions", () => {
     writeState.hash = null;
     writeState.error = null;
     writeState.isPending = false;
+    writeState.isConfirming = false;
   });
 
-  it("keeps visitor/disconnected view blocked with explicit guidance", () => {
+  it("keeps visitor/disconnected view blocked with explicit guidance and connect control", async () => {
+    const user = userEvent.setup();
+
     render(<DealActions overview={baseOverview} />);
 
     expect(screen.getByText("Read-only visitor")).toBeTruthy();
     expect(screen.getByText("Connect a wallet to unlock role-specific milestone actions.")).toBeTruthy();
     expect(screen.getByText("Wallet connection is required before role-specific actions are available.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Fund milestone" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Connect Injected" }));
+    expect(connectMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows buyer funding action but keeps writes disabled on wrong network", () => {
+  it("shows buyer funding action but keeps writes disabled on wrong network and allows disconnect", async () => {
+    const user = userEvent.setup();
+
     accountState.address = baseOverview.buyer;
     accountState.isConnected = true;
     accountState.chainId = 1;
@@ -122,6 +131,9 @@ describe("deal actions", () => {
     expect(screen.getByText("Switch to Base Sepolia to perform contract actions.")).toBeTruthy();
     const fundButton = screen.getByRole("button", { name: "Fund milestone" }) as HTMLButtonElement;
     expect(fundButton.disabled).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(disconnectMock).toHaveBeenCalledTimes(1);
   });
 
   it("submits seller evidence only after payload validation passes and enforces remove-reference boundary", async () => {
@@ -211,6 +223,62 @@ describe("deal actions", () => {
 
     expect(screen.getByRole("button", { name: "Claim after timeout" })).toBeTruthy();
     expect(screen.getByText("Review window elapsed. Timeout claim is available.")).toBeTruthy();
+  });
+
+  it("shows malformed/null semantics fallback when current milestone status is missing", () => {
+    accountState.address = baseOverview.buyer;
+    accountState.isConnected = true;
+
+    render(
+      <DealActions
+        overview={{
+          ...baseOverview,
+          currentMilestone: {
+            ...baseOverview.currentMilestone,
+            status: undefined,
+          },
+        }}
+      />
+    );
+
+    expect(
+      screen.getByText(
+        "Action eligibility is unavailable because milestone semantics could not be derived. Keep actions blocked until backend truth reloads."
+      )
+    ).toBeTruthy();
+    expect(
+      screen.getByText("Milestone action eligibility is unavailable. Refresh once backend-derived state is available.")
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Fund milestone" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit milestone" })).toBeNull();
+  });
+
+  it("renders tx hash, write error, and confirming-state pending copy in wallet panel", () => {
+    accountState.address = baseOverview.buyer;
+    accountState.isConnected = true;
+    writeState.hash = "0xabc" as `0x${string}`;
+    writeState.error = new Error("boom");
+    writeState.isConfirming = true;
+
+    render(
+      <DealActions
+        overview={{
+          ...baseOverview,
+          currentMilestone: {
+            ...baseOverview.currentMilestone,
+            status: 0,
+          },
+        }}
+      />
+    );
+
+    const lastTxRow = screen.getByTestId("action-panel-last-tx");
+    expect(lastTxRow.textContent).toContain("Last submitted tx");
+    expect(lastTxRow.textContent).toContain("0xabc");
+    expect(screen.getByText("Write error")).toBeTruthy();
+    expect(screen.getByText("boom")).toBeTruthy();
+    expect(screen.getByText("Transaction submitted. Waiting for confirmation before enabling new writes.")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Fund milestone" }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("shows arbiter dispute resolution route affordance for disputed milestones", () => {

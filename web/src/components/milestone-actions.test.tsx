@@ -112,16 +112,23 @@ describe("milestone actions", () => {
     writeState.isConfirming = false;
   });
 
-  it("keeps visitor/disconnected view fail-closed with explicit blocked guidance", () => {
+  it("keeps visitor/disconnected view fail-closed with explicit blocked guidance and connect control", async () => {
+    const user = userEvent.setup();
+
     render(<MilestoneActions overview={overview} milestoneId={0n} milestone={fundedMilestone} />);
 
     expect(screen.getByText("Read-only visitor")).toBeTruthy();
     expect(screen.getByText("Connect a wallet to reveal buyer, seller, or arbiter actions.")).toBeTruthy();
     expect(screen.getByText("Wallet connection is required before role-specific actions are available.")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Submit milestone" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Connect Injected" }));
+    expect(connectMock).toHaveBeenCalledTimes(1);
   });
 
-  it("disables buyer funding writes on wrong chain", () => {
+  it("disables buyer funding writes on wrong chain and supports disconnect action", async () => {
+    const user = userEvent.setup();
+
     accountState.address = overview.buyer;
     accountState.isConnected = true;
     accountState.chainId = 1;
@@ -131,6 +138,9 @@ describe("milestone actions", () => {
     expect(screen.getByText("Switch to Base Sepolia to perform contract actions.")).toBeTruthy();
     const fundButton = screen.getByRole("button", { name: "Fund milestone" }) as HTMLButtonElement;
     expect(fundButton.disabled).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Disconnect" }));
+    expect(disconnectMock).toHaveBeenCalledTimes(1);
   });
 
   it("keeps submission blocked until payload is valid and enforces reference remove boundary", async () => {
@@ -223,6 +233,21 @@ describe("milestone actions", () => {
       screen.getByText("Transaction submitted. Waiting for confirmation before enabling new writes.")
     ).toBeTruthy();
     expect((screen.getByRole("button", { name: "Claim after timeout" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("shows tx hash and write error callouts for wallet diagnostics", () => {
+    accountState.address = overview.seller;
+    accountState.isConnected = true;
+    writeState.hash = "0xdef" as `0x${string}`;
+    writeState.error = new Error("write failed");
+
+    render(<MilestoneActions overview={overview} milestoneId={0n} milestone={fundedMilestone} />);
+
+    const lastTxRow = screen.getByTestId("action-panel-last-tx");
+    expect(lastTxRow.textContent).toContain("Last submitted tx");
+    expect(lastTxRow.textContent).toContain("0xdef");
+    expect(screen.getByText("Write error")).toBeTruthy();
+    expect(screen.getByText("write failed")).toBeTruthy();
   });
 
   it("shows arbiter dispute resolution route affordance", () => {
