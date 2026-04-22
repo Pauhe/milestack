@@ -20,13 +20,17 @@
     "wagmi": "^3.6.3"
   },
   "devDependencies": {
+    "@playwright/test": "^1.56.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "@playwright/test": "^1.56.1",
     "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
+    "jsdom": "^29.0.2",
     "typescript": "^5",
     "vitest": "^4.1.4"
   }
