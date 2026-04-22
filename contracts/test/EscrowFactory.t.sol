@@ -311,15 +311,11 @@ contract EscrowFactoryTest is Test {
         address scriptFeeRecipient = address(0x5678);
         uint16 scriptFeeBps = 250;
 
-        vm.setEnv(DEPLOYER_PRIVATE_KEY, vm.toString(deployerPrivateKey));
-        vm.setEnv(USDC_ADDRESS_KEY, vm.toString(scriptUsdc));
-        vm.setEnv(FEE_RECIPIENT_KEY, vm.toString(scriptFeeRecipient));
-        vm.setEnv(PROTOCOL_FEE_BPS_KEY, vm.toString(uint256(scriptFeeBps)));
-
         uint256 deployerBalanceBefore = deployer.balance;
 
         DeployEscrowFactory script = new DeployEscrowFactory();
-        EscrowFactory deployedFactory = script.run();
+        EscrowFactory deployedFactory =
+            script.deployFromConfig(deployerPrivateKey, scriptUsdc, scriptFeeRecipient, scriptFeeBps);
 
         assertEq(deployedFactory.usdc(), scriptUsdc);
         assertEq(deployedFactory.feeRecipient(), scriptFeeRecipient);
@@ -329,18 +325,9 @@ contract EscrowFactoryTest is Test {
     }
 
     function testDeployScriptRunRevertsWhenProtocolFeeBpsOverflowsUint16() public {
-        uint256 deployerPrivateKey = 0xA11CE;
-
-        vm.setEnv(DEPLOYER_PRIVATE_KEY, vm.toString(deployerPrivateKey));
-        vm.setEnv(USDC_ADDRESS_KEY, vm.toString(address(0x1234)));
-        vm.setEnv(FEE_RECIPIENT_KEY, vm.toString(address(0x5678)));
-        vm.setEnv(PROTOCOL_FEE_BPS_KEY, vm.toString(uint256(type(uint16).max) + 1));
-
         DeployEscrowFactory script = new DeployEscrowFactory();
         vm.expectRevert(bytes("PROTOCOL_FEE_BPS_OVERFLOW"));
-        script.run();
-
-        vm.setEnv(PROTOCOL_FEE_BPS_KEY, vm.toString(uint256(250)));
+        script.deployFromConfig(0xA11CE, address(0x1234), address(0x5678), uint256(type(uint16).max) + 1);
     }
 
     function _milestones() internal pure returns (MilestoneConfig[] memory milestones) {

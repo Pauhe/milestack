@@ -10,8 +10,17 @@ contract DeployEscrowFactory is Script {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address usdc = vm.envAddress("USDC_ADDRESS");
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
-
         uint256 rawProtocolFeeBps = vm.envUint("PROTOCOL_FEE_BPS");
+
+        deployedFactory = deployFromConfig(deployerPrivateKey, usdc, feeRecipient, rawProtocolFeeBps);
+    }
+
+    function deployFromConfig(
+        uint256 deployerPrivateKey,
+        address usdc,
+        address feeRecipient,
+        uint256 rawProtocolFeeBps
+    ) public returns (EscrowFactory deployedFactory) {
         require(rawProtocolFeeBps <= type(uint16).max, "PROTOCOL_FEE_BPS_OVERFLOW");
         uint16 protocolFeeBps = uint16(rawProtocolFeeBps);
 

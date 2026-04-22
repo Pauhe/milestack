@@ -141,10 +141,6 @@ test("POST /sync succeeds with indexed checkpoint and fails closed with sanitize
     chain: { id: deploymentManifest.chain.chainId },
     getBlockNumber: async () => 21n,
     getLogs: async () => [],
-    multicall: async () => [],
-    readContract: async () => {
-      throw new Error("not used");
-    },
   });
 
   const success = await jsonRequest("/sync", "POST");
@@ -158,10 +154,6 @@ test("POST /sync succeeds with indexed checkpoint and fails closed with sanitize
       throw new Error("rpc   timeout\n\n while   syncing");
     },
     getLogs: async () => [],
-    multicall: async () => [],
-    readContract: async () => {
-      throw new Error("not used");
-    },
   });
 
   const failed = await jsonRequest("/sync", "POST");
