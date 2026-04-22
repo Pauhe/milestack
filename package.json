@@ -1,0 +1,10 @@
+{
+  "name": "milestack-root-verification",
+  "private": true,
+  "scripts": {
+    "test:rehearsal-recovery": "playwright test tests/rehearsal-recovery.spec.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
+  }
+}

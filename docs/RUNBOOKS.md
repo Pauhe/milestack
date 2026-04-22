@@ -2,242 +2,161 @@
 
 ## 1. Purpose
 
-This document defines operational runbooks for Milestack's MVP and early production period.
+This document defines executable incident and launch-operability runbooks for the current Milestack MVP rehearsal stack.
 
-It focuses on incidents and degraded states that are realistic for a contracts-plus-backend product where real money may later be at risk.
+Scope is intentionally narrow:
+- backend `/health` truth surface
+- rehearsal/recovery/operability gate scripts
+- canary abort and offchain rollback decisions
 
-The goal is not to automate every response. The goal is to ensure the team knows:
-- what symptoms matter
-- how to diagnose them
-- what actions are safe
-- what actions are unsafe
+It does **not** describe a production alerting platform that is not yet implemented in this repository.
 
-## 2. General Incident Principles
+## 2. Incident Principles (Current Scope)
 
-1. Do not guess about chain truth. Verify against onchain state first.
-2. If offchain systems are unhealthy, prefer disabling new deal creation over risking inconsistent user actions.
-3. Never take an action that changes live escrow outcomes outside documented contract permissions.
-4. Preserve logs, block numbers, transaction hashes, and timestamps for every incident.
-5. Communicate clearly to users when an issue is offchain-only versus contract-level.
+1. Treat chain state as settlement truth and backend state as operational truth.
+2. If backend truth is degraded, fail closed on launch decisions.
+3. Do not claim launch readiness without gate artifacts written by scripts.
+4. Keep incident evidence machine-readable (`deployments/rehearsal-local/*.json`).
+5. Limit rollback actions to offchain systems; contract outcomes are not "rolled back".
 
-## 3. Incident Severity Levels
+## 3. Runtime Signals You Can Trust
 
-### Severity 1
+### 3.1 Backend `/health`
 
-Examples:
-- contract bug affecting custody or payout correctness
-- inability to trust settlement outcomes
-- widespread incorrect frontend actions that may cause financial harm
+Check:
 
-Immediate actions:
-- pause new escrow creation if factory pause exists
-- disable create-deal UI
-- notify internal responders immediately
-- stop rollout and begin incident review
+```bash
+curl --fail --silent http://127.0.0.1:4100/health
+```
 
-### Severity 2
+`/health` returns:
+- top-level: `ok`, `environment`, `chainId`, `factoryAddress`
+- `sync` object with:
+  - provenance/runtime: `runtime.deploymentEnv`, `runtime.manifestEnvironment`, `runtime.manifestVersion`, `runtime.chainId`, `runtime.contractAddress`
+  - freshness/lag: `freshness`, `degraded`, `status`, `phase`, `lagBlocks`
+  - failure context: `lastError`, `loop.lastSyncError`
 
-Examples:
-- indexer or backend lag causing stale UI
-- RPC instability affecting reads or transaction submission
-- metadata verification failures on active deals
+### 3.2 Recovery and operability artifacts
 
-Immediate actions:
-- disable or warn on affected UI actions if necessary
-- verify whether onchain settlement is still safe
-- begin diagnosis and communicate degraded service
+Required artifacts:
+- `deployments/rehearsal-local/rehearsal-verification.json`
+- `deployments/rehearsal-local/rehearsal-recovery-verification.json`
+- `deployments/rehearsal-local/operability-verification.json`
+- `deployments/rehearsal-local/browser-evidence/*.png`
 
-### Severity 3
+These artifacts are the launch/no-launch evidence source.
 
-Examples:
-- non-critical monitoring gaps
-- delayed reputation updates
-- minor staging-only issues
+## 4. Executable Verification Commands
 
-Immediate actions:
-- log, triage, and fix in standard workflow
+Run from repository root.
 
-## 4. Incident Response Runbook
+### 4.1 Recovery proof (S02)
 
-### Trigger conditions
+```bash
+bash scripts/verify-s02-recovery.sh
+```
 
-- unexpected payout behavior reported
-- monitoring alert on failed smoke journey
-- large indexer lag
-- repeated RPC failures
-- discrepancy between UI state and onchain state
+This verifies:
+- pre-restart, during-recovery, post-recovery `/health` snapshots
+- continuity assertions against seeded rehearsal journeys
+- browser evidence for degraded and recovered route behavior
 
-### Response steps
+Outputs:
+- `deployments/rehearsal-local/rehearsal-recovery-verification.json`
+- browser screenshots under `deployments/rehearsal-local/browser-evidence/`
 
-1. Identify incident severity.
-2. Capture:
-   - environment
-   - contract address
-   - milestone id if relevant
-   - tx hashes
-   - current indexed block
-   - current chain head
-3. Verify live onchain state directly.
-4. Determine whether issue is:
-   - contract-level
-   - backend/indexer-level
-   - frontend-only
-   - RPC/provider-level
-5. If user harm could increase through new deal creation, pause creation or disable create-deal UI.
-6. Communicate internal status and user-facing status.
-7. Apply fix or mitigation.
-8. Verify resolution with smoke checks and targeted reproduction.
-9. Write incident summary and follow-up actions.
+### 4.2 Launch-operability gate (S03)
 
-### Unsafe actions during incident
+```bash
+bash scripts/verify-s03-operability.sh
+```
 
-- editing production data manually without a documented migration or replay path
-- claiming that funds are safe without onchain verification
-- modifying live escrow state outside contract permissions
-- unpausing or reopening user access before smoke tests pass
+This composes S01 + S02 and then gates:
+- artifact contract completeness
+- abort threshold contract
+- launch verdict artifact generation
 
-## 5. Indexer Lag Runbook
+For `DEPLOY_ENVIRONMENT=rehearsal-local`, default thresholds are intentionally aligned to current expected degraded/stale metadata semantics:
+- `REHEARSAL_ABORT_ALLOW_DEGRADED=1`
+- `REHEARSAL_ABORT_REQUIRE_SYNC_STATUS=stale`
+- `REHEARSAL_ABORT_MAX_STALE_HEALTH_SNAPSHOTS=3`
 
-### Symptoms
+For other environments, defaults remain fail-closed (`healthy`/non-degraded/fresh-only).
 
-- UI timelines stale
-- reputation pages outdated
-- latest indexed block materially behind chain head
-- smoke tests failing because expected events do not appear
+## 5. Canary Abort Runbook (Executable)
 
-### Diagnosis
+### Trigger: abort threshold breach
 
-1. Compare latest indexed block to chain head.
-2. Check worker logs for:
-   - RPC errors
-   - decode failures
-   - DB connection issues
-   - stuck replay queues
-3. Check whether lag is global or isolated to one contract or event type.
-4. Confirm whether direct onchain reads still match expected state.
+If `scripts/verify-s03-operability.sh` exits non-zero with messages like:
+- `abort threshold breached: status=... required=...`
+- `abort threshold breached: lagBlocks=...`
+- `abort threshold breached: degraded=true ...`
+- `missing browser evidence exceeds abort threshold ...`
 
-### Safe mitigation
+### Canary abort actions
 
-1. Keep read-only pages available if onchain reads still work.
-2. Show a stale-data warning if needed.
-3. Disable or caution on actions that depend on backend-derived state if role safety is unclear.
-4. Restart indexer worker if issue is transient and replay-safe.
-5. Rebuild affected projections from source events if data corruption occurred.
+1. Stop canary expansion immediately.
+2. Preserve gate evidence files and backend/web logs.
+3. Do not relabel the run as healthy by manual edits.
+4. Diagnose from `operability-verification.json`:
+   - `failurePhase`
+   - `failureReason`
+   - `abortThresholds`
+   - `phases[]`
 
-### Recovery criteria
+## 6. Offchain Rollback Runbook
 
-- indexed block catches up within acceptable lag threshold
-- derived views and timelines match onchain state
-- smoke journeys pass again
-
-## 6. RPC Failover Runbook
-
-### Symptoms
-
-- elevated read call failures
-- wallet transaction submission confusion due to stale app state
-- backend cannot advance indexed block
-- chain head unavailable from primary provider
-
-### Diagnosis
-
-1. Check primary RPC status and recent failure rate.
-2. Verify fallback provider health.
-3. Compare chain head values across providers.
-4. Confirm whether issue is provider-specific or network-wide.
-
-### Mitigation
-
-1. Switch backend reads and indexing to fallback RPC if primary is degraded.
-2. Confirm frontend read endpoints also fail over where applicable.
-3. Increase UI warnings if chain reads are inconsistent.
-4. If both providers are unreliable, disable create-deal flow until stable.
-
-### Recovery criteria
-
-- stable reads on at least one provider
-- indexer resumes normal progress
-- health checks and smoke journeys return to green
-
-## 7. Metadata Verification Failure Runbook
-
-### Symptoms
-
-- metadata hash mismatch
-- expected milestone text missing or altered
-- dispute or evidence references fail verification
-
-### Diagnosis
-
-1. Compare fetched payload hash to onchain hash.
-2. Verify whether wrong content source, encoding mismatch, or actual tampering caused failure.
-3. Check whether the issue is isolated or systemic.
-
-### Mitigation
-
-1. Mark the metadata as unverified in UI.
-2. Avoid presenting unverified metadata as canonical.
-3. Keep direct onchain state visible.
-4. If issue affects create-deal or active-deal clarity materially, disable affected views until fixed.
-
-### Recovery criteria
-
-- hash verification passes again
-- canonical source is stable
-- smoke checks involving metadata succeed
-
-## 8. Canary Abort Criteria
-
-The mainnet canary phase should stop immediately if any of these occur:
-
-1. incorrect payout accounting
-2. stale or incorrect deal state in UI that could mislead users materially
-3. indexer cannot keep up reliably
-4. smoke journeys fail more than the allowed threshold
-5. RPC failover does not work cleanly
-6. onchain and backend state disagree in a way that affects user decisions
-7. incident response cannot clearly classify and mitigate the issue quickly
-
-### Abort actions
-
-1. pause creation of new escrows if supported
-2. disable create-deal UI
-3. stop canary expansion immediately
-4. preserve logs and metrics
-5. investigate root cause before any further mainnet activity
-
-## 9. Deployment Rollback Runbook For Offchain Systems
-
-### Scope
-
-This runbook applies only to backend, frontend, and indexer systems.
-
-Contract deployments are not “rolled back” in the traditional sense. New deployments or paused creation are the mitigation path there.
+Rollback scope is **only** backend/web/indexer services and deployment configuration.
 
 ### Steps
 
-1. Identify whether issue is frontend-only, backend-only, or both.
-2. Roll back to last known-good backend/frontend artifact.
-3. Verify environment variables and contract registry config.
-4. Re-run health checks.
-5. Re-run smoke journeys.
-6. If indexer data is suspect, rebuild projections from source events.
+1. Identify failing phase from `operability-verification.json`.
+2. Revert the latest offchain release/config to last known-good.
+3. Restart backend/web processes.
+4. Re-run:
+   - `bash scripts/verify-s02-recovery.sh`
+   - `bash scripts/verify-s03-operability.sh`
+5. Accept rollback only when S03 returns PASS and writes a fresh artifact.
 
-## 10. Communications Template
+### Unsafe rollback actions
 
-For any user-visible incident, communicate:
+- Editing artifact JSON by hand to force PASS.
+- Claiming recovery without rerunning S02/S03.
+- Describing contract state changes as rollback.
 
-1. what is affected
-2. whether onchain funds are affected or only the app experience
-3. whether users should avoid creating new deals temporarily
-4. when the next update will be provided
+## 7. Incident Diagnosis Matrix
 
-## 11. Minimum Operational Readiness Before Mainnet
+### A. `/health` shows stale/degraded and S03 fails
 
-Do not enter canary or broader mainnet use until:
+Interpretation: launch gate says no-launch under current thresholds.
 
-1. these runbooks exist and are reviewed
-2. responders know who owns incident response
-3. creation pause path is tested if implemented
-4. smoke checks run automatically
-5. logs, metrics, and alerts are operational
+Action:
+1. Read `sync.lastError` and `loop.lastSyncError`.
+2. Confirm expected environment policy (`rehearsal-local` vs non-local).
+3. Fix root cause or adjust explicit threshold vars only when environment policy requires it.
+
+### B. Artifacts missing or malformed
+
+Interpretation: verification evidence is incomplete.
+
+Action:
+1. Re-run S02 and S03.
+2. Ensure browser screenshot files exist in expected path.
+3. Do not proceed until artifact-contract-check passes.
+
+### C. Browser proofs fail while backend health passes
+
+Interpretation: route truth guidance regressed.
+
+Action:
+1. Run `npx playwright test tests/rehearsal-recovery.spec.ts` from repo root.
+2. Investigate route guidance/test-id regressions.
+3. Re-run S02/S03 after fix.
+
+## 8. Current Launch Boundary (Honesty Contract)
+
+This repo currently provides executable launch-operability proof for `rehearsal-local`.
+
+It does **not** claim verified production/staging abort thresholds or alerting integrations in this document.
+
+Any production/staging launch claim must be backed by environment-specific manifest coverage and successful gate artifacts under that environment’s thresholds.
