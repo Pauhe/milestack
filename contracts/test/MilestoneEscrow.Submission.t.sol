@@ -53,6 +53,10 @@ contract MilestoneEscrowInternalHarness is MilestoneEscrow {
         return _payerForAction(actor, action);
     }
 
+    function exposedIsAuthorized(address actor, AuthorityAction action) external view returns (bool) {
+        return _isAuthorized(actor, action);
+    }
+
     function exposedIsAuthorizedForRole(
         address actor,
         address principal,
@@ -68,6 +72,10 @@ contract MilestoneEscrowInternalHarness is MilestoneEscrow {
 }
 
 contract MilestoneEscrowSubmissionTest is Test {
+    uint256 internal constant ACTIVE_DISPUTE_SLOT = 8;
+    uint256 internal constant MILESTONES_SLOT = 17;
+    uint256 internal constant MILESTONE_STORAGE_STRIDE = 6;
+
     address internal constant BUYER = address(0xB0B);
     address internal constant SELLER = address(0xA11CE);
     address internal constant ARBITER = address(0xCAFE);
@@ -227,6 +235,11 @@ contract MilestoneEscrowSubmissionTest is Test {
         escrow.submitMilestone(2, EVIDENCE_HASH);
     }
 
+    function testGetMilestoneRevertsForOutOfBoundsMilestone() public {
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneIndex.selector));
+        escrow.getMilestone(2);
+    }
+
     function testSubmitRevertsForWrongMilestoneSequence() public {
         MilestoneEscrow anotherEscrow = _deployEscrow();
 
@@ -305,6 +318,27 @@ contract MilestoneEscrowSubmissionTest is Test {
         assertEq(uint256(singleMilestoneEscrow.dealStatus()), uint256(DealStatus.Completed));
     }
 
+    function testFundAllMilestonesRevertsAfterFinalSettlement() public {
+        MilestoneEscrow singleMilestoneEscrow = _deploySingleMilestoneEscrow();
+
+        token.mint(BUYER, 1_000e6);
+        vm.prank(BUYER);
+        token.approve(address(singleMilestoneEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        singleMilestoneEscrow.fundMilestone(0);
+
+        vm.prank(SELLER);
+        singleMilestoneEscrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.prank(BUYER);
+        singleMilestoneEscrow.approveMilestone(0);
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        singleMilestoneEscrow.fundAllMilestones();
+    }
+
     function testNonBuyerCannotApproveMilestone() public {
         vm.prank(SELLER);
         escrow.submitMilestone(0, EVIDENCE_HASH);
@@ -318,6 +352,22 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.prank(BUYER);
         vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneIndex.selector));
         escrow.approveMilestone(2);
+    }
+
+    function testApproveRevertsForWrongMilestoneSequence() public {
+        MilestoneEscrow anotherEscrow = _deployEscrow();
+
+        vm.prank(BUYER);
+        token.approve(address(anotherEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        anotherEscrow.fundAllMilestones();
+
+        _setMilestoneStatus(anotherEscrow, 1, MilestoneStatus.Submitted);
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneSequence.selector));
+        anotherEscrow.approveMilestone(1);
     }
 
     function testApproveRevertsWhenMilestoneNotSubmitted() public {
@@ -534,6 +584,22 @@ contract MilestoneEscrowSubmissionTest is Test {
         escrow.claimAfterReviewWindow(2);
     }
 
+    function testClaimRevertsForWrongMilestoneSequence() public {
+        MilestoneEscrow anotherEscrow = _deployEscrow();
+
+        vm.prank(BUYER);
+        token.approve(address(anotherEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        anotherEscrow.fundAllMilestones();
+
+        _setMilestoneStatus(anotherEscrow, 1, MilestoneStatus.Submitted);
+
+        vm.prank(SELLER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneSequence.selector));
+        anotherEscrow.claimAfterReviewWindow(1);
+    }
+
     function testClaimRevertsWhenMilestoneNotSubmitted() public {
         vm.warp(block.timestamp + 5 days + 1);
 
@@ -663,6 +729,22 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.prank(BUYER);
         vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneIndex.selector));
         escrow.openDispute(2, DISPUTE_HASH);
+    }
+
+    function testOpenDisputeRevertsForWrongMilestoneSequence() public {
+        MilestoneEscrow anotherEscrow = _deployEscrow();
+
+        vm.prank(BUYER);
+        token.approve(address(anotherEscrow), type(uint256).max);
+
+        vm.prank(BUYER);
+        anotherEscrow.fundAllMilestones();
+
+        _setMilestoneStatus(anotherEscrow, 1, MilestoneStatus.Submitted);
+
+        vm.prank(BUYER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneSequence.selector));
+        anotherEscrow.openDispute(1, DISPUTE_HASH);
     }
 
     function testOpenDisputeRevertsWhenMilestoneNotSubmitted() public {
@@ -907,6 +989,17 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.prank(ARBITER);
         vm.expectRevert(abi.encodeWithSelector(NoActiveDispute.selector));
         escrow.resolveDispute(0, 0, 1_000e6);
+    }
+
+    function testResolveDisputeRevertsWhenPointerSetButMilestoneStateNotDisputed() public {
+        vm.prank(SELLER);
+        escrow.submitMilestone(0, EVIDENCE_HASH);
+
+        vm.store(address(escrow), bytes32(ACTIVE_DISPUTE_SLOT), bytes32(uint256(0)));
+
+        vm.prank(ARBITER);
+        vm.expectRevert(abi.encodeWithSelector(InvalidMilestoneState.selector));
+        escrow.resolveDispute(0, 400e6, 600e6);
     }
 
     function testResolveDisputeRevertsIfTransferFails() public {
@@ -1293,10 +1386,27 @@ contract MilestoneEscrowSubmissionTest is Test {
         );
     }
 
+    function testInternalIsAuthorizedReturnsFalseForUnknownAction() public {
+        MilestoneEscrowInternalHarness harness = _deployInternalHarnessMvp();
+
+        assertFalse(
+            harness.exposedIsAuthorized(address(0xD2), AuthorityAction(uint8(type(AuthorityAction).max)))
+        );
+    }
+
     function testInternalAllowedPermissionsReturnsZeroForObserverRole() public {
         MilestoneEscrowInternalHarness harness = _deployInternalHarnessMvp();
 
         assertEq(harness.exposedAllowedPermissionsForRole(ParticipantRole.Observer), 0);
+    }
+
+    function _setMilestoneStatus(MilestoneEscrow target, uint256 milestoneId, MilestoneStatus status)
+        internal
+    {
+        bytes32 milestonesBase = keccak256(abi.encode(uint256(MILESTONES_SLOT)));
+        uint256 statusSlot =
+            uint256(milestonesBase) + milestoneId * MILESTONE_STORAGE_STRIDE + 1;
+        vm.store(address(target), bytes32(statusSlot), bytes32(uint256(status)));
     }
 
     function _deployInternalHarnessMvp() internal returns (MilestoneEscrowInternalHarness harness) {

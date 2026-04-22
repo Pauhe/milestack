@@ -18,11 +18,19 @@ import {
 } from "src/MilestackTypes.sol";
 import {
     Unauthorized,
-    UnauthorizedDelegateOrTopology
+    UnauthorizedDelegateOrTopology,
+    InvalidTopologyParticipant,
+    InvalidParticipantRole,
+    InvalidPartyConfiguration,
+    SelfDelegation,
+    InvalidDelegatedAuthority,
+    PrivilegeEscalation
 } from "src/MilestackErrors.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract MilestoneEscrowDelegationAndTopologyTest is Test {
+    uint256 internal constant DELEGATED_PERMISSIONS_SLOT = 16;
+
     address internal constant BUYER = address(0xB0B);
     address internal constant SELLER = address(0xA11CE);
     address internal constant ARBITER = address(0xCAFE);
@@ -152,6 +160,119 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
         widenedEscrow.resolveDispute(0, 500e6, 500e6);
     }
 
+    function testConfigureWidenedAuthorityRevertsForZeroAddressParticipant() public {
+        TopologyParticipant[] memory participants = _baseParticipants();
+        participants[0].account = address(0);
+
+        WidenedAuthorityConfig memory config = _widenedConfigWithParticipants(participants);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidTopologyParticipant.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForNoneParticipantRole() public {
+        TopologyParticipant[] memory participants = _baseParticipants();
+        participants[0].role = ParticipantRole.None;
+
+        WidenedAuthorityConfig memory config = _widenedConfigWithParticipants(participants);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidParticipantRole.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsWhenCanonicalBuyerMissing() public {
+        TopologyParticipant[] memory participants = _baseParticipantsWithoutBuyer();
+
+        WidenedAuthorityConfig memory config = _widenedConfigWithParticipants(participants);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsWhenCanonicalSellerMissing() public {
+        TopologyParticipant[] memory participants = _baseParticipantsWithoutSeller();
+
+        WidenedAuthorityConfig memory config = _widenedConfigWithParticipants(participants);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsWhenCanonicalArbiterMissing() public {
+        TopologyParticipant[] memory participants = _baseParticipantsWithoutArbiter();
+
+        WidenedAuthorityConfig memory config = _widenedConfigWithParticipants(participants);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForSelfDelegation() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        config.delegations[0].delegate = config.delegations[0].delegator;
+
+        vm.expectRevert(abi.encodeWithSelector(SelfDelegation.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForInactiveDelegation() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        config.delegations[0].active = false;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForZeroPermissionDelegation() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        config.delegations[0].permissions = 0;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsWhenDelegatorMissingFromTopology() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        config.delegations[0].delegator = STRANGER;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForPrivilegeEscalationPermissions() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        config.delegations[1].permissions = uint32(1 << uint8(AuthorityAction.Resolve));
+
+        vm.expectRevert(abi.encodeWithSelector(PrivilegeEscalation.selector));
+        new MilestoneEscrow(_config(), _milestones(), config);
+    }
+
+    function testWidenedFundRevertsWhenBuyerDelegationPermissionRemoved() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        MilestoneEscrow escrowWithoutBuyerFundDelegation =
+            new MilestoneEscrow(_config(), _milestones(), config);
+
+        bytes32 buyerKey = keccak256(abi.encode(BUYER, DELEGATED_PERMISSIONS_SLOT));
+        bytes32 buyerDelegateKey = keccak256(abi.encode(BUYER_DELEGATE, uint256(buyerKey)));
+        vm.store(address(escrowWithoutBuyerFundDelegation), buyerDelegateKey, bytes32(0));
+
+        vm.prank(BUYER_DELEGATE);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedDelegateOrTopology.selector));
+        escrowWithoutBuyerFundDelegation.fundMilestone(0);
+    }
+
+    function testWidenedFundRevertsWhenDelegateNotInTopologyButDelegationExists() public {
+        WidenedAuthorityConfig memory config = _widenedConfig();
+        MilestoneEscrow escrowWithInactiveDelegate = new MilestoneEscrow(_config(), _milestones(), config);
+
+        bytes32 topologyKey = keccak256(abi.encode(BUYER_DELEGATE, uint256(15)));
+        vm.store(address(escrowWithInactiveDelegate), topologyKey, bytes32(0));
+
+        vm.prank(BUYER_DELEGATE);
+        vm.expectRevert(abi.encodeWithSelector(UnauthorizedDelegateOrTopology.selector));
+        escrowWithInactiveDelegate.fundMilestone(0);
+    }
+
     function _config() internal view returns (DealConfig memory) {
         return DealConfig({
             buyer: BUYER,
@@ -168,6 +289,86 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
         milestoneConfigs = new MilestoneConfig[](2);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
         milestoneConfigs[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 5 days });
+    }
+
+    function _baseParticipants() internal pure returns (TopologyParticipant[] memory participants) {
+        participants = new TopologyParticipant[](6);
+        participants[0] = TopologyParticipant(BUYER, ParticipantRole.Buyer, true);
+        participants[1] = TopologyParticipant(SELLER, ParticipantRole.Seller, true);
+        participants[2] = TopologyParticipant(ARBITER, ParticipantRole.Arbiter, true);
+        participants[3] = TopologyParticipant(BUYER_DELEGATE, ParticipantRole.Observer, true);
+        participants[4] = TopologyParticipant(SELLER_DELEGATE, ParticipantRole.Observer, true);
+        participants[5] = TopologyParticipant(ARBITER_DELEGATE, ParticipantRole.Observer, true);
+    }
+
+    function _baseParticipantsWithoutBuyer() internal pure returns (TopologyParticipant[] memory participants) {
+        participants = new TopologyParticipant[](5);
+        participants[0] = TopologyParticipant(SELLER, ParticipantRole.Seller, true);
+        participants[1] = TopologyParticipant(ARBITER, ParticipantRole.Arbiter, true);
+        participants[2] = TopologyParticipant(BUYER_DELEGATE, ParticipantRole.Observer, true);
+        participants[3] = TopologyParticipant(SELLER_DELEGATE, ParticipantRole.Observer, true);
+        participants[4] = TopologyParticipant(ARBITER_DELEGATE, ParticipantRole.Observer, true);
+    }
+
+    function _baseParticipantsWithoutSeller()
+        internal
+        pure
+        returns (TopologyParticipant[] memory participants)
+    {
+        participants = new TopologyParticipant[](5);
+        participants[0] = TopologyParticipant(BUYER, ParticipantRole.Buyer, true);
+        participants[1] = TopologyParticipant(ARBITER, ParticipantRole.Arbiter, true);
+        participants[2] = TopologyParticipant(BUYER_DELEGATE, ParticipantRole.Observer, true);
+        participants[3] = TopologyParticipant(SELLER_DELEGATE, ParticipantRole.Observer, true);
+        participants[4] = TopologyParticipant(ARBITER_DELEGATE, ParticipantRole.Observer, true);
+    }
+
+    function _baseParticipantsWithoutArbiter()
+        internal
+        pure
+        returns (TopologyParticipant[] memory participants)
+    {
+        participants = new TopologyParticipant[](5);
+        participants[0] = TopologyParticipant(BUYER, ParticipantRole.Buyer, true);
+        participants[1] = TopologyParticipant(SELLER, ParticipantRole.Seller, true);
+        participants[2] = TopologyParticipant(BUYER_DELEGATE, ParticipantRole.Observer, true);
+        participants[3] = TopologyParticipant(SELLER_DELEGATE, ParticipantRole.Observer, true);
+        participants[4] = TopologyParticipant(ARBITER_DELEGATE, ParticipantRole.Observer, true);
+    }
+
+    function _widenedConfigWithParticipants(TopologyParticipant[] memory participants)
+        internal
+        pure
+        returns (WidenedAuthorityConfig memory config)
+    {
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](3);
+        delegations[0] = DelegatedAuthority(
+            BUYER,
+            BUYER_DELEGATE,
+            uint32(1 << uint8(AuthorityAction.Fund))
+                | uint32(1 << uint8(AuthorityAction.Approve))
+                | uint32(1 << uint8(AuthorityAction.Dispute)),
+            true
+        );
+        delegations[1] = DelegatedAuthority(
+            SELLER,
+            SELLER_DELEGATE,
+            uint32(1 << uint8(AuthorityAction.Submit))
+                | uint32(1 << uint8(AuthorityAction.Claim)),
+            true
+        );
+        delegations[2] = DelegatedAuthority(
+            ARBITER,
+            ARBITER_DELEGATE,
+            uint32(1 << uint8(AuthorityAction.Resolve)),
+            true
+        );
+
+        config = WidenedAuthorityConfig({
+            modelVersion: AUTHORITY_MODEL_WIDENED_V1,
+            participants: participants,
+            delegations: delegations
+        });
     }
 
     function _widenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
