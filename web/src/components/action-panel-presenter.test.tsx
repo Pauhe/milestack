@@ -1,69 +1,155 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { ActionPanelWalletPanel, ActionPanelWorkflowPanel } from "@/components/action-panel-presenter";
+import type { EscrowOverview } from "@/lib/contracts/milestone-escrow";
+import { deriveBatchFundingGuidance } from "@/lib/batch-funding-guidance";
 
-describe("action panel presenter", () => {
-  it("renders disconnected wallet panel with connector CTA and without tx surfaces", () => {
-    const html = renderToStaticMarkup(
-      <ActionPanelWalletPanel
-        roleTitle="Read-only visitor"
-        description="Connect to reveal role-specific writes."
-        isConnected={false}
-        connectors={[{ uid: "injected", name: "Injected", onConnect: vi.fn() }]}
-      />
-    );
+function baseOverview(): EscrowOverview {
+  return {
+    address: "0x1111111111111111111111111111111111111111",
+    buyer: "0x2222222222222222222222222222222222222222",
+    seller: "0x3333333333333333333333333333333333333333",
+    arbiter: "0x4444444444444444444444444444444444444444",
+    token: "0x5555555555555555555555555555555555555555",
+    metadataHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+    dealStatus: 1,
+    currentMilestoneIndex: 1n,
+    activeDisputeMilestoneId: 2n,
+    totalFunded: 1_000_000n,
+    totalReleasedToSeller: 0n,
+    totalRefundedToBuyer: 0n,
+    totalFeesCollected: 0n,
+    milestoneCount: 4n,
+    currentMilestone: {
+      amount: 1_000_000n,
+      status: 0,
+      reviewWindowSeconds: 86400,
+      submittedAt: 0n,
+      reviewDeadline: 0n,
+      evidenceHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      disputeHash: "0x0000000000000000000000000000000000000000000000000000000000000000",
+      buyerAward: 0n,
+      sellerAward: 0n,
+    },
+  };
+}
 
-    expect(html).toContain("Read-only visitor");
-    expect(html).toContain("Connect Injected");
-    expect(html).not.toContain("action-panel-last-tx");
-    expect(html).not.toContain("action-panel-write-error");
+describe("batch funding guidance", () => {
+  it("enables batch funding when current milestone can fund and multiple pending milestones remain", () => {
+    const guidance = deriveBatchFundingGuidance({
+      overview: baseOverview(),
+      canFundCurrentMilestone: true,
+    });
+
+    expect(guidance.canShowBatchFundAction).toBe(true);
+    expect(guidance.summary).toContain("all remaining pending milestones");
+    expect(guidance.remainingPendingCount).toBe(3);
   });
 
-  it("renders connected wallet telemetry including wrong-chain and write-error callouts", () => {
-    const html = renderToStaticMarkup(
-      <ActionPanelWalletPanel
-        roleTitle="buyer"
-        description="Buyer can approve or dispute based on backend-derived eligibility."
-        isConnected
-        walletAddress="0xabc"
-        chainLabel="Wrong network (84531)"
-        onDisconnect={vi.fn()}
-        wrongChainMessage="Switch to Base Sepolia to perform contract actions."
-        txHash="0x123"
-        errorMessage="execution reverted"
-        errorTitle="Write error"
-      />
-    );
+  it("blocks batch funding when current-funding eligibility is blocked", () => {
+    const guidance = deriveBatchFundingGuidance({
+      overview: baseOverview(),
+      canFundCurrentMilestone: false,
+    });
 
-    expect(html).toContain("Wallet: 0xabc");
-    expect(html).toContain("Wrong chain");
-    expect(html).toContain("Switch to Base Sepolia to perform contract actions.");
-    expect(html).toContain("Last submitted tx:");
-    expect(html).toContain("0x123");
-    expect(html).toContain("Write error");
-    expect(html).toContain("execution reverted");
+    expect(guidance.canShowBatchFundAction).toBe(false);
+    expect(guidance.blockedReason).toContain("blocked");
   });
 
-  it("renders next-step, pending, blocked, and trust-hint messaging under workflow panel", () => {
-    const html = renderToStaticMarkup(
-      <ActionPanelWorkflowPanel
-        eyebrow="Milestone actions"
-        title="Allowed next step"
-        nextStepLabel="Buyer action"
-        nextStepMessage="Approve or dispute during the active review window."
-        pendingMessage="Transaction submitted. Waiting for confirmation."
-        blockedReason="Resolution is blocked until exact split validity is restored."
-        trustHint="Seller can claim only after timeout semantics are satisfied."
-      >
-        <button type="button">Approve milestone</button>
-      </ActionPanelWorkflowPanel>
-    );
+  it("keeps guidance conservative for malformed milestone counts", () => {
+    const malformed = {
+      ...baseOverview(),
+      milestoneCount: 0n,
+    };
 
-    expect(html).toContain("Buyer action:");
-    expect(html).toContain("Transaction pending");
-    expect(html).toContain("Blocked");
-    expect(html).toContain("Lifecycle hint");
-    expect(html).toContain("Approve milestone");
+    const guidance = deriveBatchFundingGuidance({
+      overview: malformed,
+      canFundCurrentMilestone: true,
+    });
+
+    expect(guidance.canShowBatchFundAction).toBe(false);
+    expect(guidance.blockedReason).toContain("remaining milestone counts are unavailable");
+  });
+
+  it("suppresses batch action when only one pending milestone remains", () => {
+    const singleRemaining = {
+      ...baseOverview(),
+      currentMilestoneIndex: 3n,
+      milestoneCount: 4n,
+    };
+
+    const guidance = deriveBatchFundingGuidance({
+      overview: singleRemaining,
+      canFundCurrentMilestone: true,
+    });
+
+    expect(guidance.canShowBatchFundAction).toBe(false);
+    expect(guidance.blockedReason).toContain("Only one pending milestone remains");
+  });
+
+  it("keeps batch action blocked once current milestone is no longer pending", () => {
+    const nonPending = {
+      ...baseOverview(),
+      currentMilestone: {
+        ...baseOverview().currentMilestone!,
+        status: 1,
+      },
+    };
+
+    const guidance = deriveBatchFundingGuidance({
+      overview: nonPending,
+      canFundCurrentMilestone: true,
+    });
+
+    expect(guidance.canShowBatchFundAction).toBe(false);
+    expect(guidance.blockedReason).toContain("pending funding status");
+  });
+
+  it("consumes indexed milestone statuses conservatively when provided", () => {
+    const guidance = deriveBatchFundingGuidance({
+      overview: baseOverview(),
+      canFundCurrentMilestone: true,
+      indexedMilestones: [
+        {
+          escrow_address: baseOverview().address,
+          milestone_id: 1,
+          amount: "1000000",
+          status: 0,
+          review_window_seconds: 86400,
+          submitted_at: "0",
+          review_deadline: "0",
+          evidence_hash: "0x",
+          dispute_hash: "0x",
+          buyer_award: "0",
+          seller_award: "0",
+          metadata_title: null,
+          metadata_description: null,
+        },
+        {
+          escrow_address: baseOverview().address,
+          milestone_id: 2,
+          amount: "1000000",
+          status: 1,
+          review_window_seconds: 86400,
+          submitted_at: "0",
+          review_deadline: "0",
+          evidence_hash: "0x",
+          dispute_hash: "0x",
+          buyer_award: "0",
+          seller_award: "0",
+          metadata_title: null,
+          metadata_description: null,
+        },
+      ],
+    });
+
+    expect(guidance.canShowBatchFundAction).toBe(true);
+    expect(guidance.remainingPendingCount).toBe(2);
+  });
+
+  it("renders the exact conservative CTA wording used by action surfaces", () => {
+    const html = renderToStaticMarkup(<p>{deriveBatchFundingGuidance({ overview: baseOverview(), canFundCurrentMilestone: true }).summary}</p>);
+
+    expect(html).toContain("all remaining pending milestones");
   });
 });

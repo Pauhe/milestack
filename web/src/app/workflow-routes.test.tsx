@@ -119,6 +119,7 @@ function installBackendMocks() {
         total_released_to_seller: "0",
         total_refunded_to_buyer: "0",
         total_fees_collected: "0",
+        milestone_count: 3,
         freshness: staleFreshness,
         truth: {
           metadata: {

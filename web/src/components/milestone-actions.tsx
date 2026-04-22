@@ -22,6 +22,7 @@ import {
   type EvidenceReferenceInput,
 } from "@/lib/evidence-payload";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
+import { deriveBatchFundingGuidance } from "@/lib/batch-funding-guidance";
 import { getDealStatusLabel } from "@/lib/status";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import { ActionPanelWalletPanel, ActionPanelWorkflowPanel } from "@/components/action-panel-presenter";
@@ -134,6 +135,15 @@ export function MilestoneActions({
         disputeRouteHref: `/deals/${overview.address}/disputes/${milestoneId.toString()}`,
       }),
     [isConnected, isWrongChain, milestoneId, overview.address, role, semantics]
+  );
+
+  const batchFundingGuidance = useMemo(
+    () =>
+      deriveBatchFundingGuidance({
+        overview,
+        canFundCurrentMilestone: semantics.canFund,
+      }),
+    [overview, semantics.canFund]
   );
 
   const submissionPayload = useMemo(
@@ -271,14 +281,32 @@ export function MilestoneActions({
       >
         <WorkflowActionGroup>
           {semantics.canFund ? (
-            <button
-              className="button button--primary"
-              disabled={isBusy || isWrongChain}
-              onClick={() => runWrite("fundMilestone", [milestoneId])}
-              type="button"
-            >
-              Fund milestone
-            </button>
+            <div className="stack-sm">
+              <button
+                className="button button--primary"
+                disabled={isBusy || isWrongChain}
+                onClick={() => runWrite("fundMilestone", [milestoneId])}
+                type="button"
+              >
+                Fund milestone
+              </button>
+
+              {batchFundingGuidance.canShowBatchFundAction ? (
+                <>
+                  <button
+                    className="button button--ghost"
+                    disabled={isBusy || isWrongChain}
+                    onClick={() => runWrite("fundAllMilestones", [])}
+                    type="button"
+                  >
+                    Fund all remaining pending milestones
+                  </button>
+                  <p className="status-text">{batchFundingGuidance.summary}</p>
+                </>
+              ) : (
+                <p className="status-text">{batchFundingGuidance.blockedReason ?? batchFundingGuidance.summary}</p>
+              )}
+            </div>
           ) : null}
 
           {semantics.canSubmit ? (
