@@ -27,6 +27,7 @@ import {
     InvalidMetadataHash,
     InvalidParticipantRole,
     InvalidDelegatedAuthority,
+    DuplicateDelegation,
     PrivilegeEscalation,
     Unauthorized,
     CreationPaused
@@ -197,6 +198,22 @@ contract EscrowFactoryTest is Test {
         factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
     }
 
+    function testCreateEscrowWidenedRejectsCanonicalBuyerWithWrongRole() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+        config.participants[0].role = ParticipantRole.Observer;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
+    function testCreateEscrowWidenedRejectsCanonicalArbiterWithWrongRole() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+        config.participants[2].role = ParticipantRole.Seller;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
     function testCreateEscrowWidenedRejectsDelegationFromUnknownDelegator() public {
         WidenedAuthorityConfig memory config = _validWidenedConfig();
         config.delegations[0].delegator = address(0xDEAD);
@@ -211,6 +228,63 @@ contract EscrowFactoryTest is Test {
 
         vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
         factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
+    function testCreateEscrowWidenedRejectsDelegationToUnknownDelegate() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+        config.delegations[0].delegate = address(0xFACE);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
+    function testCreateEscrowWidenedRejectsInactiveDelegation() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+        config.delegations[0].active = false;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
+    function testCreateEscrowWidenedRejectsInactiveDelegatorParticipant() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+        address observer = config.participants[3].account;
+
+        config.participants[3].active = false;
+        config.delegations[0] = DelegatedAuthority(
+            observer,
+            BUYER,
+            uint32(1 << uint8(AuthorityAction.Fund)),
+            true
+        );
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
+    function testCreateEscrowWidenedRejectsDuplicateDelegationPair() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+
+        DelegatedAuthority[] memory duplicativeDelegations = new DelegatedAuthority[](2);
+        duplicativeDelegations[0] = config.delegations[0];
+        duplicativeDelegations[1] = config.delegations[0];
+        config.delegations = duplicativeDelegations;
+
+        vm.expectRevert(abi.encodeWithSelector(DuplicateDelegation.selector));
+        factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+    }
+
+    function testCreateEscrowWidenedAllowsArbiterResolveDelegation() public {
+        WidenedAuthorityConfig memory config = _validWidenedConfig();
+        config.delegations[0] = DelegatedAuthority(
+            ARBITER,
+            config.participants[3].account,
+            uint32(1 << uint8(AuthorityAction.Resolve)),
+            true
+        );
+
+        address escrow = factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+        assertTrue(escrow != address(0));
     }
 
     function testCreateEscrowWidenedRejectsObserverDelegationPermissions() public {
@@ -252,6 +326,21 @@ contract EscrowFactoryTest is Test {
         assertEq(deployedFactory.protocolFeeBps(), scriptFeeBps);
         assertEq(deployedFactory.owner(), deployer);
         assertEq(deployer.balance, deployerBalanceBefore);
+    }
+
+    function testDeployScriptRunRevertsWhenProtocolFeeBpsOverflowsUint16() public {
+        uint256 deployerPrivateKey = 0xA11CE;
+
+        vm.setEnv(DEPLOYER_PRIVATE_KEY, vm.toString(deployerPrivateKey));
+        vm.setEnv(USDC_ADDRESS_KEY, vm.toString(address(0x1234)));
+        vm.setEnv(FEE_RECIPIENT_KEY, vm.toString(address(0x5678)));
+        vm.setEnv(PROTOCOL_FEE_BPS_KEY, vm.toString(uint256(type(uint16).max) + 1));
+
+        DeployEscrowFactory script = new DeployEscrowFactory();
+        vm.expectRevert(bytes("PROTOCOL_FEE_BPS_OVERFLOW"));
+        script.run();
+
+        vm.setEnv(PROTOCOL_FEE_BPS_KEY, vm.toString(uint256(250)));
     }
 
     function _milestones() internal pure returns (MilestoneConfig[] memory milestones) {
