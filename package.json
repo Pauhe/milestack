@@ -3,6 +3,7 @@
   "private": true,
   "scripts": {
     "test": "node -e \"const { spawnSync } = require('node:child_process'); const { existsSync } = require('node:fs'); const args = process.argv.slice(1); const classify = (p) => ({ inWeb: existsSync('web/' + p), inBackend: existsSync('backend/' + p) }); let prefix = 'web'; if (args.length) { const hits = args.map(classify); const onlyWeb = hits.some((h) => h.inWeb && !h.inBackend); const onlyBackend = hits.some((h) => h.inBackend && !h.inWeb); prefix = onlyWeb && !onlyBackend ? 'web' : onlyBackend && !onlyWeb ? 'backend' : 'backend'; } const target = ['--prefix', prefix, 'run', 'test', ...(args.length ? ['--', ...args] : [])]; const r = spawnSync('npm', target, { stdio: 'inherit' }); process.exit(r.status ?? 1);\"",
+    "coverage": "npm --prefix backend run coverage && npm --prefix web run coverage && forge coverage --root contracts --report summary --report lcov && node scripts/check-coverage.mjs",
     "lint": "npm --prefix web run lint",
     "build": "npm --prefix backend run build && npm --prefix web run build",
     "test:rehearsal-recovery": "playwright test tests/rehearsal-recovery.spec.ts"

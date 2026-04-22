@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "test:rehearsal": "playwright test tests/rehearsal-happy.spec.ts tests/rehearsal-timeout.spec.ts tests/rehearsal-dispute.spec.ts"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@playwright/test": "^1.56.1",
+    "@vitest/coverage-v8": "^4.1.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "typescript": "^5",
