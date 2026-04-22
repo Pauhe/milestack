@@ -4,6 +4,7 @@
   "scripts": {
     "test": "npm --prefix web test --",
     "lint": "npm --prefix web run lint",
+    "build": "npm --prefix backend run build && npm --prefix web run build",
     "test:rehearsal-recovery": "playwright test tests/rehearsal-recovery.spec.ts"
   },
   "devDependencies": {

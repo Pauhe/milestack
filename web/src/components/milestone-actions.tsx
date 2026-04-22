@@ -20,7 +20,6 @@ import {
   evidenceReferenceTypes,
   type DisputeReasonCode,
   type EvidenceReferenceInput,
-  type EvidenceReferenceType,
 } from "@/lib/evidence-payload";
 import { deriveMilestoneActionSemantics, type MilestoneRole } from "@/lib/milestone-semantics";
 import { getDealStatusLabel } from "@/lib/status";
