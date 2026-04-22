@@ -17,7 +17,6 @@ export default defineConfig({
         "dist/**",
         ".next/**",
       ],
-      all: true,
       thresholds: {
         lines: 100,
         functions: 100,
