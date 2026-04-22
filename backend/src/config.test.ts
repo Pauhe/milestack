@@ -51,6 +51,25 @@ test("getDeploymentManifest rejects unsupported deployment environment", async (
   );
 });
 
+test("backendConfig rejects non-positive integer env overrides", async () => {
+  process.env.SYNC_INTERVAL_MS = "0";
+
+  await assert.rejects(
+    () => import(`./config.js?bad-sync-interval=${Date.now()}`),
+    /SYNC_INTERVAL_MS must be a positive integer/
+  );
+
+  delete process.env.SYNC_INTERVAL_MS;
+  process.env.PORT = "not-a-number";
+
+  await assert.rejects(
+    () => import(`./config.js?bad-port=${Date.now()}`),
+    /PORT must be a positive integer/
+  );
+
+  delete process.env.PORT;
+});
+
 test("validateDeploymentManifest rejects manifest/environment mismatch", () => {
   assert.throws(
     () => validateDeploymentManifest(localManifest, "rehearsal-local"),

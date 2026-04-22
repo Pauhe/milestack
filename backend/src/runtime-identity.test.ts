@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertRuntimeChainSupported } from "./chains.js";
+import { assertRuntimeChainSupported, getConfiguredChain } from "./chains.js";
 import { db } from "./db.js";
 import {
   clearDerivedReadModels,
@@ -178,4 +178,28 @@ test("chain queries fail closed and never coerce unsupported identity to chain 0
 
 test("unsupported runtime chain ids throw actionable errors", () => {
   assert.throws(() => assertRuntimeChainSupported(999999), /Unsupported runtime chain id/);
+});
+
+test("configured runtime chain matches the deployment manifest chain", async () => {
+  const configured = getConfiguredChain();
+  const { deploymentManifest } = await import(`./config.js?runtime-manifest-${Date.now()}`);
+  assert.equal(configured.id, deploymentManifest.chain.chainId);
+});
+
+test("legacy sync checkpoint helpers round-trip from runtime tests", async () => {
+  const dbModule = await import(`./db.js?runtime-identity-db-${Date.now()}`);
+
+  dbModule.patchSyncHealthState({
+    lastSuccessfulBlock: 123n,
+    chainHeadSeen: 123n,
+    lagBlocks: 0n,
+    phase: "idle",
+    status: "healthy",
+    lastError: null,
+  });
+
+  assert.equal(dbModule.getLastSyncedBlock(), 123n);
+
+  dbModule.setLastSyncedBlock(124n);
+  assert.equal(dbModule.getSyncHealthState().lastSuccessfulBlock, 124n);
 });
