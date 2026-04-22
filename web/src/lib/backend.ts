@@ -237,6 +237,113 @@ export type BackendItemsResponse<T> = {
   freshness?: BackendFreshnessPayload | null;
 };
 
+export type BackendDiscoveryRoleStats = {
+  completedDealsCount: number;
+  completedMilestonesCount: number;
+  disputeCount: number;
+  disputeWinsCount: number;
+  disputeLossesCount: number;
+  resolvedDisputeCount: number;
+  unresolvedDisputeCount: number;
+  disputeSplitCount: number;
+  cancellationCount: number;
+  totalVolume: string;
+  updatedAtBlock: string | null;
+  truthState: "available" | "missing" | "ambiguous";
+  degraded: boolean;
+  reason: string | null;
+};
+
+export type BackendDiscoveryCard = {
+  identity: {
+    chainId: number;
+    address: string;
+    key: string;
+  };
+  participants: {
+    buyer: string;
+    seller: string;
+    arbiter: string;
+  };
+  overview: {
+    dealStatus: number;
+    milestoneCount: number;
+    currentMilestoneIndex: number;
+    activeDisputeMilestoneId: string | null;
+    totalFunded: string;
+    totalReleasedToSeller: string;
+    totalRefundedToBuyer: string;
+    totalFeesCollected: string;
+  };
+  milestones: {
+    totalCount: number;
+    submittedCount: number;
+    terminalCount: number;
+    current: {
+      milestoneId: number;
+      status: number;
+      amount: string;
+      reviewDeadline: string;
+    } | null;
+  };
+  metadata: {
+    state: string;
+    verified: boolean;
+    degraded: boolean;
+    metadataHash: string;
+    metadataUrl: string | null;
+    payloadPresent: boolean;
+    updatedAtBlock: string | null;
+    error: string | null;
+  };
+  capability: {
+    listingMode: "informational";
+    writeActionsExposed: boolean;
+    authorityRankingExposed: boolean;
+    trustClaimsLimitedToIndexedTruth: boolean;
+  };
+  roleStats: {
+    buyer: BackendDiscoveryRoleStats;
+    seller: BackendDiscoveryRoleStats;
+    arbiter: BackendDiscoveryRoleStats;
+  };
+};
+
+export type BackendDiscoveryTruth = {
+  listingContract: string;
+  capabilitySummary: {
+    writeActionsExposed: boolean;
+    authorityRankingExposed: boolean;
+    roleStatsAreDirectionalOnly: boolean;
+    metadataVisibility: {
+      state: string;
+      degraded: boolean;
+      reason: string | null;
+    };
+  };
+  freshnessSummary: {
+    state: string;
+    degraded: boolean;
+    reason: string | null;
+  };
+};
+
+export type BackendDiscoveryResponse = {
+  items: BackendDiscoveryCard[];
+  freshness: BackendFreshnessPayload | null;
+  truth: BackendDiscoveryTruth | null;
+};
+
+export type BackendDiscoveryAssessment = {
+  state: "healthy" | "degraded";
+  message: string;
+};
+
+export type BackendDiscoveryMetadataAssessment = {
+  state: "healthy" | "degraded";
+  message: string;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -847,6 +954,143 @@ export function getRoleTrustAssessment(input: {
   return {
     state: "healthy",
     message: `${input.roleLabel} trust metrics are backend-derived and informational only (not settlement-authoritative).`,
+  };
+}
+
+export function getDiscoveryCapabilityAssessment(
+  capability: BackendDiscoveryCard["capability"] | null | undefined
+): BackendDiscoveryAssessment {
+  if (!capability) {
+    return {
+      state: "degraded",
+      message: "Discovery capability contract is unavailable. Treat discovery entries as informational only.",
+    };
+  }
+
+  if (
+    capability.listingMode !== "informational" ||
+    capability.writeActionsExposed ||
+    capability.authorityRankingExposed ||
+    !capability.trustClaimsLimitedToIndexedTruth
+  ) {
+    return {
+      state: "degraded",
+      message:
+        "Discovery capability contract is malformed. Do not infer write authority or ranking from discovery cards.",
+    };
+  }
+
+  return {
+    state: "healthy",
+    message:
+      "Discovery capability contract is informational-only. Cards never expose write authority, settlement authority, or ranking guarantees.",
+  };
+}
+
+export function getDiscoveryMetadataAssessment(
+  metadata: BackendDiscoveryCard["metadata"] | null | undefined
+): BackendDiscoveryMetadataAssessment {
+  if (!metadata) {
+    return {
+      state: "degraded",
+      message: "Metadata truth is unavailable for this discovery card. Treat listing details as conservative context only.",
+    };
+  }
+
+  if (metadata.verified && !metadata.degraded && metadata.state === "verified") {
+    return {
+      state: "healthy",
+      message: "Metadata payload is verified against indexed truth for this card.",
+    };
+  }
+
+  if (metadata.state === "mismatched") {
+    return {
+      state: "degraded",
+      message: "Metadata payload is mismatched; do not treat listing terms as authoritative from discovery alone.",
+    };
+  }
+
+  if (metadata.state === "missing") {
+    return {
+      state: "degraded",
+      message: "Metadata payload is missing; listing details are incomplete and informational only.",
+    };
+  }
+
+  return {
+    state: "degraded",
+    message: "Metadata truth is degraded or unverified for this card; keep listing interpretation conservative.",
+  };
+}
+
+export function getDiscoveryRoleStatsAssessment(
+  roleLabel: "Buyer" | "Seller" | "Arbiter",
+  stats: BackendDiscoveryRoleStats | null | undefined
+): BackendDiscoveryAssessment {
+  if (!stats) {
+    return {
+      state: "degraded",
+      message: `${roleLabel} trust signals are unavailable from indexed role stats.`,
+    };
+  }
+
+  if (stats.degraded || stats.truthState !== "available") {
+    return {
+      state: "degraded",
+      message:
+        `${roleLabel} trust signals are degraded (${stats.truthState}). ` +
+        "Use these counters as directional context only, not authority or payout guarantees.",
+    };
+  }
+
+  return {
+    state: "healthy",
+    message: `${roleLabel} trust signals are healthy indexed summaries and remain informational only.`,
+  };
+}
+
+export function getDiscoveryContractAssessment(
+  truth: BackendDiscoveryTruth | null | undefined,
+  freshness: BackendFreshnessAssessment
+): BackendDiscoveryAssessment {
+  if (!truth || !isRecord(truth)) {
+    return {
+      state: "degraded",
+      message: "Discovery truth contract is unavailable. Treat all discovery cards as degraded informational context.",
+    };
+  }
+
+  const listingContract = safeString(truth.listingContract);
+  const capabilitySummary = isRecord(truth.capabilitySummary) ? truth.capabilitySummary : null;
+  const freshnessSummary = isRecord(truth.freshnessSummary) ? truth.freshnessSummary : null;
+
+  if (
+    listingContract !== "informational_read_model_only" ||
+    !capabilitySummary ||
+    safeBoolean(capabilitySummary.writeActionsExposed) !== false ||
+    safeBoolean(capabilitySummary.authorityRankingExposed) !== false ||
+    safeBoolean(capabilitySummary.roleStatsAreDirectionalOnly) !== true
+  ) {
+    return {
+      state: "degraded",
+      message:
+        "Discovery truth contract is malformed. Discovery must be treated as informational-only without write/ranking authority implications.",
+    };
+  }
+
+  if (!freshnessSummary || freshness.state !== "healthy") {
+    return {
+      state: "degraded",
+      message:
+        "Discovery truth contract is present but freshness is degraded. Keep listing and trust messaging conservative until freshness recovers.",
+    };
+  }
+
+  return {
+    state: "healthy",
+    message:
+      "Discovery truth contract confirms informational-only listing semantics and conservative capability boundaries.",
   };
 }
 

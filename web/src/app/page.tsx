@@ -16,6 +16,9 @@ export default function Home() {
           <Link className="button button--primary" href="/create">
             Start a deal
           </Link>
+          <Link className="button button--ghost" href="/discover">
+            Browse discovery
+          </Link>
           <Link className="button button--ghost" href="/deals/demo-deal">
             Open demo deal
           </Link>
@@ -39,6 +42,9 @@ export default function Home() {
           <ul className="plain-list stack-sm">
             <li>
               <Link href="/create">Create Deal</Link>
+            </li>
+            <li>
+              <Link href="/discover">Discover</Link>
             </li>
             <li>
               <Link href="/deals/demo-deal">Deal Overview</Link>

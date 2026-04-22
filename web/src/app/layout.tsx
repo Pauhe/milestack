@@ -38,6 +38,7 @@ export default function RootLayout({
 
               <nav className="site-nav" aria-label="Primary">
                 <Link href="/create">Create Deal</Link>
+                <Link href="/discover">Discover</Link>
                 <Link href="/deals/demo-deal">Deal Overview</Link>
                 <Link href="/deals/demo-deal/milestones/0">Milestone</Link>
                 <Link href="/deals/demo-deal/disputes/0">Dispute</Link>

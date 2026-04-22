@@ -1,6 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("next/font/google", () => ({
+  Geist: () => ({ variable: "--font-geist-sans" }),
+  Geist_Mono: () => ({ variable: "--font-geist-mono" }),
+}));
+
 const {
   mockFetchBackendJson,
   mockReadEscrowOverview,
@@ -47,6 +52,8 @@ vi.mock("@/lib/backend", async () => {
 import DealOverviewPage from "@/app/deals/[address]/page";
 import MilestoneDetailPage from "@/app/deals/[address]/milestones/[milestoneId]/page";
 import DisputePage from "@/app/deals/[address]/disputes/[milestoneId]/page";
+import HomePage from "@/app/page";
+import RootLayout from "@/app/layout";
 
 const escrowAddress = "0x1111111111111111111111111111111111111111";
 
@@ -254,6 +261,22 @@ function installBackendMocks() {
 }
 
 describe("workflow route hierarchy", () => {
+  it("keeps top-level navigation discover entry points visible", () => {
+    const layoutHtml = renderToStaticMarkup(
+      <RootLayout>
+        <div>content</div>
+      </RootLayout>
+    );
+    const homeHtml = renderToStaticMarkup(<HomePage />);
+
+    expect(layoutHtml).toContain('href="/discover"');
+    expect(layoutHtml).toContain("Primary");
+    expect(homeHtml).toContain('href="/discover"');
+    expect(homeHtml).toContain("Browse discovery");
+    expect(homeHtml).toContain("Core screens");
+    expect(homeHtml).toContain("Discover");
+  });
+
   it("keeps deal route hierarchy and trust markers explicit", async () => {
     installBackendMocks();
 
