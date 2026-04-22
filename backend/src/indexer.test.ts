@@ -12,6 +12,7 @@ import {
   resetIndexerPublicClient,
   setIndexerPublicClient,
   summarizeTimelineEvent,
+  deriveActorDetails,
   deriveActorRole,
   deriveTimelineTruth,
   syncIndexer,
@@ -212,6 +213,82 @@ test("timeline claim semantics stay ambiguous when adjacent approval is for a di
   assert.equal(truth.payoutAttribution, "seller_timeout_or_unresolved");
 });
 
+test("timeline claim semantics treat next-event approval on the same milestone as buyer-approved", () => {
+  const context = {
+    payload: { milestoneId: "7" },
+    nextEventName: "MilestoneApproved",
+    nextPayload: { milestoneId: 7n },
+  };
+
+  const summary = summarizeTimelineEvent("MilestoneClaimed", context);
+  assert.equal(summary, "Milestone payout finalized after buyer approval");
+
+  const actorRole = deriveActorRole("MilestoneClaimed", context);
+  assert.equal(actorRole, "buyer");
+
+  const truth = deriveTimelineTruth("MilestoneClaimed", context);
+  assert.equal(truth.ambiguous, false);
+  assert.equal(truth.payoutAttribution, "buyer_approved");
+});
+
+test("timeline helpers fail closed on malformed milestoneId payloads", () => {
+  const malformedContexts = [
+    { payload: { milestoneId: "01a" }, nextEventName: "MilestoneApproved", nextPayload: { milestoneId: "01a" } },
+    { payload: { milestoneId: 1.25 }, previousEventName: "MilestoneApproved", previousPayload: { milestoneId: 1.25 } },
+    { payload: { milestoneId: true }, previousEventName: "MilestoneApproved", previousPayload: { milestoneId: true } },
+    { payload: { milestoneId: null }, nextEventName: "MilestoneApproved", nextPayload: { milestoneId: 0 } },
+  ] as const;
+
+  for (const context of malformedContexts) {
+    const summary = summarizeTimelineEvent("MilestoneClaimed", context);
+    assert.equal(summary, "Milestone payout finalized (approval or seller timeout claim remains ambiguous)");
+
+    const actorRole = deriveActorRole("MilestoneClaimed", context);
+    assert.equal(actorRole, null);
+
+    const truth = deriveTimelineTruth("MilestoneClaimed", context);
+    assert.equal(truth.ambiguous, true);
+    assert.equal(truth.payoutAttribution, "seller_timeout_or_unresolved");
+  }
+});
+
+test("deriveActorDetails resolves actor addresses for each role and preserves conservative claim ambiguity", () => {
+  const participants = {
+    buyer_address: BUYER,
+    seller_address: SELLER,
+    arbiter_address: ARBITER,
+  };
+
+  const funded = deriveActorDetails("MilestoneFunded", participants);
+  assert.deepEqual(funded, { address: BUYER, role: "buyer" });
+
+  const submitted = deriveActorDetails("MilestoneSubmitted", participants);
+  assert.deepEqual(submitted, { address: SELLER, role: "seller" });
+
+  const resolved = deriveActorDetails("DisputeResolved", participants);
+  assert.deepEqual(resolved, { address: ARBITER, role: "arbiter" });
+
+  const claimedWithApproval = deriveActorDetails("MilestoneClaimed", participants, {
+    payload: { milestoneId: "3" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: 3 },
+  });
+  assert.deepEqual(claimedWithApproval, { address: BUYER, role: "buyer" });
+
+  const ambiguousClaimed = deriveActorDetails("MilestoneClaimed", participants, {
+    payload: { milestoneId: "3" },
+    previousEventName: "MilestoneApproved",
+    previousPayload: { milestoneId: 2 },
+  });
+  assert.equal(ambiguousClaimed, null);
+
+  const unknown = deriveActorDetails("DealCompleted", participants);
+  assert.equal(unknown, null);
+
+  const withoutParticipants = deriveActorDetails("MilestoneFunded");
+  assert.equal(withoutParticipants, null);
+});
+
 test("syncIndexer persists failure state when RPC log discovery fails and keeps last successful checkpoint", async () => {
   resetDb();
 
@@ -341,7 +418,7 @@ test("syncIndexer marks stale status when metadata verification is degraded", as
   }
 });
 
-test("syncIndexer ignores non-EscrowCreated factory logs and malformed EscrowCreated payloads", async () => {
+test("syncIndexer ignores non-EscrowCreated factory logs", async () => {
   resetDb();
 
   const client = createMockClient();
@@ -604,6 +681,67 @@ test("rebuildIndexerFromPersistedEvents applies dispute lifecycle events and met
   }
 });
 
+test("rebuildIndexerFromPersistedEvents preserves terminal paidOut milestone against late MilestoneApproved", async () => {
+  resetDb();
+
+  const chainId = 31337;
+  const client = createMockClient();
+  setIndexerPublicClient(client);
+
+  const insertEventRow = db.prepare(
+    `
+      INSERT INTO events (
+        chain_id,
+        block_number,
+        tx_hash,
+        log_index,
+        escrow_address,
+        event_name,
+        summary,
+        payload_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  );
+
+  insertEventRow.run(
+    chainId,
+    "10",
+    makeTxHash(12000),
+    "0",
+    ESCROW_ADDRESS,
+    "EscrowCreated",
+    "Escrow deployed",
+    JSON.stringify({
+      escrow: ESCROW_ADDRESS,
+      buyer: BUYER,
+      seller: SELLER,
+      arbiter: ARBITER,
+      token: TOKEN,
+      milestoneCount: "1",
+      metadataHash: METADATA_HASH,
+    })
+  );
+  insertEventRow.run(chainId, "11", makeTxHash(12001), "0", ESCROW_ADDRESS, "MilestoneFunded", "Buyer funded milestone", JSON.stringify({ milestoneId: 0, amount: "1500" }));
+  insertEventRow.run(chainId, "12", makeTxHash(12002), "0", ESCROW_ADDRESS, "MilestoneClaimed", "Milestone payout finalized", JSON.stringify({ milestoneId: 0, sellerAmount: "1490", feeAmount: "10" }));
+  insertEventRow.run(chainId, "13", makeTxHash(12003), "0", ESCROW_ADDRESS, "MilestoneApproved", "Buyer approved milestone", JSON.stringify({ milestoneId: 0 }));
+
+  try {
+    const result = await rebuildIndexerFromPersistedEvents();
+    assert.equal(result.replayedEventCount, 4);
+
+    const milestone = getMilestone(chainId, ESCROW_ADDRESS, 0);
+    assert.ok(milestone);
+    assert.equal(milestone.status, 7, "late approval must not downgrade already-terminal payout status");
+    assert.equal(milestone.seller_award, "1490");
+
+    const escrow = getEscrow(chainId, ESCROW_ADDRESS);
+    assert.ok(escrow);
+    assert.equal(escrow.total_released_to_seller, "1490");
+  } finally {
+    resetIndexerPublicClient();
+  }
+});
+
 function resetDb() {
   db.exec(`
     DELETE FROM events;
@@ -764,21 +902,6 @@ function createUntrackedMilestoneEscrowLog(address: Address, blockNumber: bigint
     txHash,
     logIndex
   );
-}
-
-function createEscrowCreatedWithoutEscrowAddressLog(blockNumber: bigint, txHash: `0x${string}`, logIndex: number): MockLog {
-  return {
-    data: (padAddress(ARBITER) + padAddress(TOKEN).slice(2) + padUint(1n).slice(2) + METADATA_HASH.slice(2)) as `0x${string}`,
-    topics: [
-      "0x30f3f0dbfdf5d7446ce512f08e8f4542e7394ac6db1681e4ac88580e4332dcac",
-      "0x0000000000000000000000000000000000000000000000000000000000000000",
-      padAddress(BUYER),
-      padAddress(SELLER),
-    ],
-    blockNumber,
-    transactionHash: txHash,
-    logIndex,
-  };
 }
 
 function createLog(
