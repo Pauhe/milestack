@@ -45,6 +45,10 @@ describe("validateCreateDeal", () => {
         reviewWindowSeconds: 432000,
       },
     ]);
+    expect(result.fundingGuidance.isAvailable).toBe(true);
+    expect(result.fundingGuidance.totalAmountLabel).toBe("1000 USDC");
+    expect(result.fundingGuidance.currentMilestoneAmountLabel).toBe("1000 USDC");
+    expect(result.fundingGuidance.remainingMilestonesAmountLabel).toBe("0 USDC");
   });
 
   it("requires distinct buyer, seller, and arbiter addresses", () => {
@@ -78,6 +82,8 @@ describe("validateCreateDeal", () => {
     expect(result.errors).toContain("Milestone 1 amount must be a valid USDC value.");
     expect(result.errors).toContain("Milestone 1 review window must be greater than zero.");
     expect(result.metadataHash).toBeNull();
+    expect(result.fundingGuidance.isAvailable).toBe(false);
+    expect(result.fundingGuidance.invalidReason).toContain("Funding summary unavailable");
   });
 
   it("changes the metadata hash when form content changes", () => {
@@ -180,9 +186,9 @@ describe("validateCreateDeal", () => {
     expect(first.metadataHash).toEqual(second.metadataHash);
   });
 
-  it("changes hash when switching between template and manual milestone expectations", () => {
+  it("derives deterministic funding guidance after editing template milestones", () => {
     const template = listCreateDealTemplates()[0];
-    const templateResult = validateCreateDeal(
+    const seeded = validateCreateDeal(
       SELLER,
       makeValidState({
         templateId: template?.id ?? null,
@@ -190,25 +196,50 @@ describe("validateCreateDeal", () => {
       })
     );
 
-    const manualResult = validateCreateDeal(
+    const editedMilestones = (template ? template.milestones : []).map((milestone, index) =>
+      index === 1
+        ? {
+            ...milestone,
+            amount: "2800",
+            reviewWindowDays: "4",
+          }
+        : { ...milestone }
+    );
+
+    const edited = validateCreateDeal(
       SELLER,
       makeValidState({
-        templateId: null,
+        templateId: template?.id ?? null,
+        milestones: editedMilestones,
+      })
+    );
+
+    expect(seeded.fundingGuidance.isAvailable).toBe(true);
+    expect(edited.fundingGuidance.isAvailable).toBe(true);
+    expect(seeded.fundingGuidance.totalAmountLabel).toBe("5500 USDC");
+    expect(edited.fundingGuidance.totalAmountLabel).toBe("5300 USDC");
+    expect(edited.fundingGuidance.reviewWindowGuidance).toContain("range from 4 to 5 days");
+  });
+
+  it("keeps funding guidance conservative for malformed milestone drafts", () => {
+    const malformed = validateCreateDeal(
+      SELLER,
+      makeValidState({
         milestones: [
           {
-            title: "Manual scope",
-            description: "Custom deliverable sequencing.",
-            amount: "2000",
-            reviewWindowDays: "6",
-            expectationChecklist: "Custom acceptance list\nManual review references",
-            evidenceGuidance: "Upload custom evidence links and handoff notes.",
+            title: "Draft",
+            description: "Draft row",
+            amount: "",
+            reviewWindowDays: "",
+            expectationChecklist: "Item",
+            evidenceGuidance: "Evidence",
           },
         ],
       })
     );
 
-    expect(templateResult.errors).toEqual([]);
-    expect(manualResult.errors).toEqual([]);
-    expect(templateResult.metadataHash).not.toEqual(manualResult.metadataHash);
+    expect(malformed.fundingGuidance.isAvailable).toBe(false);
+    expect(malformed.fundingGuidance.totalAmountLabel).toBeNull();
+    expect(malformed.fundingGuidance.reviewWindowGuidance).toContain("unavailable");
   });
 });

@@ -358,6 +358,28 @@ export function CreateDealForm() {
         <h2>Deployment summary</h2>
         <p>Metadata hash: {validation.metadataHash ?? "Unavailable until required fields are valid."}</p>
 
+        <section className="panel panel--nested stack-sm" aria-label="Funding guidance summary">
+          <h3>Funding guidance</h3>
+          {validation.fundingGuidance.isAvailable ? (
+            <>
+              <p>Total escrow commitment: {validation.fundingGuidance.totalAmountLabel}</p>
+              <p>
+                Current milestone exposure: {validation.fundingGuidance.currentMilestoneAmountLabel}; remaining pending milestones: {" "}
+                {validation.fundingGuidance.remainingMilestonesAmountLabel}.
+              </p>
+              <p>{validation.fundingGuidance.milestoneExposureLabel}</p>
+              <p>{validation.fundingGuidance.reviewWindowGuidance}</p>
+              <p>{validation.fundingGuidance.nextFundingGuidance}</p>
+            </>
+          ) : (
+            <>
+              <p>{validation.fundingGuidance.invalidReason}</p>
+              <p>{validation.fundingGuidance.reviewWindowGuidance}</p>
+              <p>{validation.fundingGuidance.nextFundingGuidance}</p>
+            </>
+          )}
+        </section>
+
         {validation.errors.length > 0 ? (
           <ul className="plain-list stack-sm">
             {validation.errors.map((item) => (

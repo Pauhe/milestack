@@ -1,5 +1,6 @@
 import { isAddress, parseUnits } from "viem";
 
+import { deriveFundingGuidanceSummary } from "@/lib/funding-guidance";
 import { hashJson } from "@/lib/hash";
 
 export type CreateDealMilestoneInput = {
@@ -109,6 +110,7 @@ export type CreateDealValidationResult = {
   metadataHash: `0x${string}` | null;
   metadata: Record<string, unknown> | null;
   milestoneConfigs: { amount: bigint; reviewWindowSeconds: number }[];
+  fundingGuidance: ReturnType<typeof deriveFundingGuidanceSummary>;
 };
 
 export const defaultCreateDealState: CreateDealFormState = {
@@ -216,6 +218,13 @@ export function validateCreateDeal(
     };
   });
 
+  const fundingGuidance = deriveFundingGuidanceSummary(
+    state.milestones.map((milestone) => ({
+      amount: milestone.amount,
+      reviewWindowDays: milestone.reviewWindowDays,
+    }))
+  );
+
   const metadata = errors.length
     ? null
     : {
@@ -255,6 +264,7 @@ export function validateCreateDeal(
     metadata,
     metadataHash: metadata ? hashJson(metadata) : null,
     milestoneConfigs,
+    fundingGuidance,
   };
 }
 
