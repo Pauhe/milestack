@@ -402,6 +402,22 @@ export function upsertUserRoleStats(input: {
   );
 }
 
+export type UserRoleStatsRow = {
+  address: string;
+  role: string;
+  completed_deals_count: number;
+  completed_milestones_count: number;
+  dispute_count: number;
+  dispute_wins_count: number;
+  dispute_losses_count: number;
+  resolved_dispute_count: number;
+  unresolved_dispute_count: number;
+  dispute_split_count: number;
+  cancellation_count: number;
+  total_volume: string;
+  updated_at_block: string;
+};
+
 export function getUserRoleStats(address: string) {
   return db
     .prepare(
@@ -410,21 +426,7 @@ export function getUserRoleStats(address: string) {
         WHERE address = ?
       `
     )
-    .all(address.toLowerCase()) as Array<{
-      address: string;
-      role: string;
-      completed_deals_count: number;
-      completed_milestones_count: number;
-      dispute_count: number;
-      dispute_wins_count: number;
-      dispute_losses_count: number;
-      resolved_dispute_count: number;
-      unresolved_dispute_count: number;
-      dispute_split_count: number;
-      cancellation_count: number;
-      total_volume: string;
-      updated_at_block: string;
-    }>;
+    .all(address.toLowerCase()) as UserRoleStatsRow[];
 }
 
 export function upsertMetadataCache(input: {
@@ -475,13 +477,83 @@ export function getMetadataCache(metadataHash: string) {
     | undefined;
 }
 
+export type MetadataCacheRow = {
+  metadata_hash: string;
+  metadata_url: string;
+  verified: number;
+  payload_json: string | null;
+  error: string | null;
+  updated_at_block: string;
+};
+
+export type DiscoveryMilestoneSummary = {
+  totalCount: number;
+  submittedCount: number;
+  terminalCount: number;
+};
+
+export type DiscoveryParticipantRoleStats = {
+  buyer: UserRoleStatsRow[];
+  seller: UserRoleStatsRow[];
+  arbiter: UserRoleStatsRow[];
+};
+
+export type DiscoveryAggregateRow = {
+  identity: {
+    chainId: number;
+    address: string;
+    key: string;
+  };
+  escrow: EscrowRow;
+  milestones: DiscoveryMilestoneSummary;
+  currentMilestone: MilestoneRow | null;
+  metadataCache: MetadataCacheRow | null;
+  roleStats: DiscoveryParticipantRoleStats;
+};
+
 export function listMetadataCache() {
-  return db.prepare("SELECT * FROM metadata_cache").all() as Array<{
-    metadata_hash: string;
-    metadata_url: string;
-    verified: number;
-    payload_json: string | null;
-    error: string | null;
-    updated_at_block: string;
-  }>;
+  return db.prepare("SELECT * FROM metadata_cache").all() as MetadataCacheRow[];
+}
+
+export function listEscrowsByChain(chainId: number) {
+  return db
+    .prepare(
+      `
+        SELECT * FROM escrows
+        WHERE chain_id = ?
+        ORDER BY CAST(updated_at_block AS INTEGER) DESC, address ASC
+      `
+    )
+    .all(chainId) as EscrowRow[];
+}
+
+export function listDiscoveryAggregates(chainId: number): DiscoveryAggregateRow[] {
+  const escrows = listEscrowsByChain(chainId);
+
+  return escrows.map((escrow) => {
+    const milestoneRows = listMilestones(escrow.chain_id, escrow.address);
+    const currentMilestone = milestoneRows.find((milestone) => milestone.milestone_id === escrow.current_milestone_index) ?? null;
+    const metadataCache = getMetadataCache(escrow.metadata_hash) ?? null;
+
+    return {
+      identity: {
+        chainId: escrow.chain_id,
+        address: escrow.address,
+        key: `${escrow.chain_id}:${escrow.address}`,
+      },
+      escrow,
+      milestones: {
+        totalCount: milestoneRows.length,
+        submittedCount: milestoneRows.filter((milestone) => milestone.status === 2).length,
+        terminalCount: milestoneRows.filter((milestone) => milestone.status === 7 || milestone.status === 8).length,
+      },
+      currentMilestone,
+      metadataCache,
+      roleStats: {
+        buyer: getUserRoleStats(escrow.buyer_address),
+        seller: getUserRoleStats(escrow.seller_address),
+        arbiter: getUserRoleStats(escrow.arbiter_address),
+      },
+    };
+  });
 }

@@ -14,6 +14,7 @@ import {
   getMilestone,
   getTimeline,
   getUserRoleStats,
+  listDiscoveryAggregates,
   listMilestones,
 } from "./repository.js";
 import { deriveMetadataTruth } from "./metadata.js";
@@ -73,6 +74,106 @@ type HashContextTruth = {
   degraded: boolean;
   ambiguity: "not-verifiable-from-onchain-hash" | null;
   reason: string | null;
+};
+
+type DiscoveryCardRow = {
+  identity: {
+    chainId: number;
+    address: string;
+    key: string;
+  };
+  participants: {
+    buyer: string;
+    seller: string;
+    arbiter: string;
+  };
+  overview: {
+    dealStatus: number;
+    milestoneCount: number;
+    currentMilestoneIndex: number;
+    activeDisputeMilestoneId: string | null;
+    totalFunded: string;
+    totalReleasedToSeller: string;
+    totalRefundedToBuyer: string;
+    totalFeesCollected: string;
+  };
+  milestones: {
+    totalCount: number;
+    submittedCount: number;
+    terminalCount: number;
+    current: {
+      milestoneId: number;
+      status: number;
+      amount: string;
+      reviewDeadline: string;
+    } | null;
+  };
+  metadata: {
+    state: string;
+    verified: boolean;
+    degraded: boolean;
+    metadataHash: string;
+    metadataUrl: string | null;
+    payloadPresent: boolean;
+    updatedAtBlock: string | null;
+    error: string | null;
+  };
+  capability: {
+    listingMode: "informational";
+    writeActionsExposed: false;
+    authorityRankingExposed: false;
+    trustClaimsLimitedToIndexedTruth: true;
+  };
+  roleStats: {
+    buyer: {
+      completedDealsCount: number;
+      completedMilestonesCount: number;
+      disputeCount: number;
+      disputeWinsCount: number;
+      disputeLossesCount: number;
+      resolvedDisputeCount: number;
+      unresolvedDisputeCount: number;
+      disputeSplitCount: number;
+      cancellationCount: number;
+      totalVolume: string;
+      updatedAtBlock: string | null;
+      truthState: "available" | "missing" | "ambiguous";
+      degraded: boolean;
+      reason: string | null;
+    };
+    seller: {
+      completedDealsCount: number;
+      completedMilestonesCount: number;
+      disputeCount: number;
+      disputeWinsCount: number;
+      disputeLossesCount: number;
+      resolvedDisputeCount: number;
+      unresolvedDisputeCount: number;
+      disputeSplitCount: number;
+      cancellationCount: number;
+      totalVolume: string;
+      updatedAtBlock: string | null;
+      truthState: "available" | "missing" | "ambiguous";
+      degraded: boolean;
+      reason: string | null;
+    };
+    arbiter: {
+      completedDealsCount: number;
+      completedMilestonesCount: number;
+      disputeCount: number;
+      disputeWinsCount: number;
+      disputeLossesCount: number;
+      resolvedDisputeCount: number;
+      unresolvedDisputeCount: number;
+      disputeSplitCount: number;
+      cancellationCount: number;
+      totalVolume: string;
+      updatedAtBlock: string | null;
+      truthState: "available" | "missing" | "ambiguous";
+      degraded: boolean;
+      reason: string | null;
+    };
+  };
 };
 
 function sanitizeErrorMessage(error: unknown) {
@@ -283,6 +384,107 @@ function readMilestoneMetadataTruth(
   } as const;
 }
 
+function emptyRoleStats(reason: string) {
+  return {
+    completedDealsCount: 0,
+    completedMilestonesCount: 0,
+    disputeCount: 0,
+    disputeWinsCount: 0,
+    disputeLossesCount: 0,
+    resolvedDisputeCount: 0,
+    unresolvedDisputeCount: 0,
+    disputeSplitCount: 0,
+    cancellationCount: 0,
+    totalVolume: "0",
+    updatedAtBlock: null,
+    truthState: "missing" as const,
+    degraded: true,
+    reason,
+  };
+}
+
+function selectRoleStats(rows: ReturnType<typeof getUserRoleStats>, role: "buyer" | "seller" | "arbiter") {
+  const matches = rows.filter((item) => item.role === role);
+
+  if (matches.length === 0) {
+    return emptyRoleStats(`No indexed ${role} role stats available.`);
+  }
+
+  if (matches.length > 1) {
+    const newest = [...matches].sort(
+      (left, right) => Number(BigInt(right.updated_at_block) - BigInt(left.updated_at_block))
+    )[0];
+
+    return {
+      completedDealsCount: newest.completed_deals_count,
+      completedMilestonesCount: newest.completed_milestones_count,
+      disputeCount: newest.dispute_count,
+      disputeWinsCount: newest.dispute_wins_count,
+      disputeLossesCount: newest.dispute_losses_count,
+      resolvedDisputeCount: newest.resolved_dispute_count,
+      unresolvedDisputeCount: newest.unresolved_dispute_count,
+      disputeSplitCount: newest.dispute_split_count,
+      cancellationCount: newest.cancellation_count,
+      totalVolume: newest.total_volume,
+      updatedAtBlock: newest.updated_at_block,
+      truthState: "ambiguous" as const,
+      degraded: true,
+      reason: `Multiple indexed ${role} stats rows found; newest row selected conservatively.`,
+    };
+  }
+
+  const stats = matches[0];
+
+  return {
+    completedDealsCount: stats.completed_deals_count,
+    completedMilestonesCount: stats.completed_milestones_count,
+    disputeCount: stats.dispute_count,
+    disputeWinsCount: stats.dispute_wins_count,
+    disputeLossesCount: stats.dispute_losses_count,
+    resolvedDisputeCount: stats.resolved_dispute_count,
+    unresolvedDisputeCount: stats.unresolved_dispute_count,
+    disputeSplitCount: stats.dispute_split_count,
+    cancellationCount: stats.cancellation_count,
+    totalVolume: stats.total_volume,
+    updatedAtBlock: stats.updated_at_block,
+    truthState: "available" as const,
+    degraded: false,
+    reason: null,
+  };
+}
+
+function metadataVisibilitySummary() {
+  if (deploymentManifest.config.metadataVisibility === "public") {
+    return {
+      state: "public",
+      degraded: false,
+      reason: null,
+    } as const;
+  }
+
+  return {
+    state: "unknown",
+    degraded: true,
+    reason: "Deployment metadata visibility is not explicitly public.",
+  } as const;
+}
+
+function deriveFreshnessTruthSummary(freshness: EndpointFreshness) {
+  if (freshness.state === "fresh") {
+    return {
+      state: "healthy",
+      degraded: false,
+      reason: null,
+    } as const;
+  }
+
+  return {
+    state: "degraded",
+    degraded: true,
+    reason: freshness.lastError ?? `Backend freshness is ${freshness.state}.`,
+  } as const;
+}
+
 export function createApp() {
   const app = express();
 
@@ -310,6 +512,84 @@ export function createApp() {
     } catch (error) {
       response.status(500).json({ error: sanitizeErrorMessage(error) });
     }
+  });
+
+  app.get("/discover", (_request, response) => {
+    const freshness = buildFreshness();
+    const rows = listDiscoveryAggregates(deploymentManifest.chain.chainId).map((aggregate): DiscoveryCardRow => {
+      const metadata = deriveMetadataTruth(aggregate.escrow.metadata_hash, aggregate.metadataCache ?? undefined);
+      const buyerStats = selectRoleStats(aggregate.roleStats.buyer, "buyer");
+      const sellerStats = selectRoleStats(aggregate.roleStats.seller, "seller");
+      const arbiterStats = selectRoleStats(aggregate.roleStats.arbiter, "arbiter");
+
+      return {
+        identity: aggregate.identity,
+        participants: {
+          buyer: aggregate.escrow.buyer_address,
+          seller: aggregate.escrow.seller_address,
+          arbiter: aggregate.escrow.arbiter_address,
+        },
+        overview: {
+          dealStatus: aggregate.escrow.deal_status,
+          milestoneCount: aggregate.escrow.milestone_count,
+          currentMilestoneIndex: aggregate.escrow.current_milestone_index,
+          activeDisputeMilestoneId: aggregate.escrow.active_dispute_milestone_id,
+          totalFunded: aggregate.escrow.total_funded,
+          totalReleasedToSeller: aggregate.escrow.total_released_to_seller,
+          totalRefundedToBuyer: aggregate.escrow.total_refunded_to_buyer,
+          totalFeesCollected: aggregate.escrow.total_fees_collected,
+        },
+        milestones: {
+          totalCount: aggregate.milestones.totalCount,
+          submittedCount: aggregate.milestones.submittedCount,
+          terminalCount: aggregate.milestones.terminalCount,
+          current: aggregate.currentMilestone
+            ? {
+                milestoneId: aggregate.currentMilestone.milestone_id,
+                status: aggregate.currentMilestone.status,
+                amount: aggregate.currentMilestone.amount,
+                reviewDeadline: aggregate.currentMilestone.review_deadline,
+              }
+            : null,
+        },
+        metadata: {
+          state: metadata.state,
+          verified: metadata.verified,
+          degraded: metadata.degraded,
+          metadataHash: metadata.metadataHash,
+          metadataUrl: metadata.metadataUrl,
+          payloadPresent: metadata.payloadPresent,
+          updatedAtBlock: metadata.updatedAtBlock,
+          error: metadata.error,
+        },
+        capability: {
+          listingMode: "informational",
+          writeActionsExposed: false,
+          authorityRankingExposed: false,
+          trustClaimsLimitedToIndexedTruth: true,
+        },
+        roleStats: {
+          buyer: buyerStats,
+          seller: sellerStats,
+          arbiter: arbiterStats,
+        },
+      };
+    });
+
+    response.json({
+      items: rows,
+      freshness,
+      truth: {
+        listingContract: "informational_read_model_only",
+        capabilitySummary: {
+          writeActionsExposed: false,
+          authorityRankingExposed: false,
+          roleStatsAreDirectionalOnly: true,
+          metadataVisibility: metadataVisibilitySummary(),
+        },
+        freshnessSummary: deriveFreshnessTruthSummary(freshness),
+      },
+    });
   });
 
   app.get("/escrows/:address/milestones", (request, response) => {
