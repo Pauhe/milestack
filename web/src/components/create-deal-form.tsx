@@ -412,12 +412,16 @@ export function CreateDealForm() {
 }
 
 export function extractEscrowAddressFromReceipt(logs: readonly Log[]) {
-  const parsedLogs = parseEventLogs({
-    abi: escrowFactoryAbi,
-    eventName: "EscrowCreated",
-    logs: [...logs],
-    strict: false,
-  }) as Array<{ args?: { escrow?: Address } }>;
+  try {
+    const parsedLogs = parseEventLogs({
+      abi: escrowFactoryAbi,
+      eventName: "EscrowCreated",
+      logs: [...logs],
+      strict: false,
+    }) as Array<{ args?: { escrow?: Address } }>;
 
-  return parsedLogs[0]?.args?.escrow ?? null;
+    return parsedLogs[0]?.args?.escrow ?? null;
+  } catch {
+    return null;
+  }
 }
