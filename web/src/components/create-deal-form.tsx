@@ -91,10 +91,16 @@ export function CreateDealForm() {
   }
 
   function removeMilestone(index: number) {
-    setState((current) => ({
-      ...current,
-      milestones: current.milestones.filter((_, milestoneIndex) => milestoneIndex !== index),
-    }));
+    setState((current) => {
+      if (current.milestones.length <= 1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        milestones: current.milestones.filter((_, milestoneIndex) => milestoneIndex !== index),
+      };
+    });
   }
 
   function applyTemplate(template: CreateDealTemplate | null) {
@@ -405,7 +411,7 @@ export function CreateDealForm() {
   );
 }
 
-function extractEscrowAddressFromReceipt(logs: readonly Log[]) {
+export function extractEscrowAddressFromReceipt(logs: readonly Log[]) {
   const parsedLogs = parseEventLogs({
     abi: escrowFactoryAbi,
     eventName: "EscrowCreated",

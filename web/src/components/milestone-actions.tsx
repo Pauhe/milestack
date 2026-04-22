@@ -235,17 +235,29 @@ export function MilestoneActions({
 
   function removeReference(mode: "submission" | "dispute", index: number) {
     if (mode === "submission") {
-      setSubmissionDraft((current) => ({
-        ...current,
-        references: current.references.filter((_, referenceIndex) => referenceIndex !== index),
-      }));
+      setSubmissionDraft((current) => {
+        if (current.references.length <= 1) {
+          return current;
+        }
+
+        return {
+          ...current,
+          references: current.references.filter((_, referenceIndex) => referenceIndex !== index),
+        };
+      });
       return;
     }
 
-    setDisputeDraft((current) => ({
-      ...current,
-      references: current.references.filter((_, referenceIndex) => referenceIndex !== index),
-    }));
+    setDisputeDraft((current) => {
+      if (current.references.length <= 1) {
+        return current;
+      }
+
+      return {
+        ...current,
+        references: current.references.filter((_, referenceIndex) => referenceIndex !== index),
+      };
+    });
   }
 
   return (
