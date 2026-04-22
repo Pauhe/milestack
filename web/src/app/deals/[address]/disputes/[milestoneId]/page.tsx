@@ -1,6 +1,7 @@
 import {
   type BackendEscrowOverview,
   type BackendMilestone,
+  type BackendReputation,
   fetchBackendJson,
   getBackendFreshnessAssessment,
   getBackendFreshnessBanner,
@@ -8,6 +9,9 @@ import {
   getDealFallbackAddress,
   getHashContextAssessment,
   getMilestoneMetadataVerificationAssessment,
+  getReputationTruthAssessment,
+  getRoleTrustAssessment,
+  parseBackendReputationRoleStats,
 } from "@/lib/backend";
 import {
   normalizeAddress,
@@ -31,6 +35,7 @@ import {
 import { deriveActionPanelGuidance, deriveDisputeResolutionGuidance } from "@/lib/workflow-guidance";
 import {
   getActionAuthorityExplanationCopy,
+  getArbiterTrustExplanationCopy,
   getDisputeAuthorityExplanationCopy,
   getDisputeFinalityExplanationCopy,
   getReviewDeadlineExplanationCopy,
@@ -81,15 +86,22 @@ export default async function DisputePage({ params }: DisputePageProps) {
     | Awaited<ReturnType<typeof readEscrowMilestone>>
     | null = null;
   let backendMilestone: BackendMilestone | null = null;
+  let backendReputation: BackendReputation | null = null;
   let readError: string | null = null;
   let freshnessAssessment = getBackendUnavailableAssessment("Backend freshness has not been loaded yet.");
 
   try {
-    [overview, milestone, backendOverview, backendMilestone] = await Promise.all([
-      readEscrowOverview(escrowAddress),
+    const overviewPromise = readEscrowOverview(escrowAddress);
+    const reputationPromise = overviewPromise.then((liveOverview) =>
+      fetchBackendJson<BackendReputation>(`/users/${liveOverview.arbiter}/reputation`)
+    );
+
+    [overview, milestone, backendOverview, backendMilestone, backendReputation] = await Promise.all([
+      overviewPromise,
       readEscrowMilestone(escrowAddress, parsedMilestoneId),
       fetchBackendJson<BackendEscrowOverview>(`/escrows/${escrowAddress}`),
       fetchBackendJson<BackendMilestone>(`/escrows/${escrowAddress}/milestones/${parsedMilestoneId.toString()}`),
+      reputationPromise,
     ]);
 
     freshnessAssessment = getBackendFreshnessAssessment(
@@ -140,6 +152,26 @@ export default async function DisputePage({ params }: DisputePageProps) {
     backendMilestone?.truth?.disputeContext,
     "dispute"
   );
+
+  const arbiterAddress = backendOverview?.arbiter_address ?? overview.arbiter;
+  const arbiterStats = parseBackendReputationRoleStats(
+    "arbiter",
+    backendReputation?.arbiterStats,
+    arbiterAddress
+  );
+  const reputationTruth = getReputationTruthAssessment(backendReputation?.truth);
+  const arbiterTrustAssessment = getRoleTrustAssessment({
+    roleLabel: "Arbiter",
+    stats: arbiterStats,
+    truth: reputationTruth,
+    freshness: freshnessAssessment,
+  });
+  const arbiterTrustExplanation = getArbiterTrustExplanationCopy({
+    freshnessAssessment,
+    truthState: reputationTruth.state,
+    trustAssessment: arbiterTrustAssessment,
+    stats: arbiterStats,
+  });
 
   const semantics = deriveMilestoneActionSemantics({
     role: "visitor" as MilestoneRole,
@@ -280,6 +312,26 @@ export default async function DisputePage({ params }: DisputePageProps) {
       </WorkflowSurfacePanel>
 
       <section className="grid-two" data-testid="dispute-truth-grid">
+        <article className="panel stack-md" data-testid="dispute-arbiter-trust-panel">
+          <h2>Arbiter trust context</h2>
+          <p className="status-text" data-testid="dispute-arbiter-trust-state">
+            Trust state: {arbiterTrustAssessment.state}
+          </p>
+          <p data-testid="dispute-arbiter-trust-explanation">{arbiterTrustExplanation}</p>
+          {arbiterStats ? (
+            <ul className="plain-list stack-sm" data-testid="dispute-arbiter-trust-stats">
+              <li>Resolved disputes: {arbiterStats.resolvedDisputeCount}</li>
+              <li>Unresolved disputes: {arbiterStats.unresolvedDisputeCount}</li>
+              <li>Split outcomes: {arbiterStats.disputeSplitCount}</li>
+              <li>Cancellations: {arbiterStats.cancellationCount}</li>
+            </ul>
+          ) : (
+            <p className="status-text" data-testid="dispute-arbiter-trust-missing">
+              Arbiter role stats are unavailable from backend reputation data.
+            </p>
+          )}
+        </article>
+
         <article className="panel stack-md" data-testid="dispute-context-panel">
           <h2>Dispute context</h2>
           <ul className="plain-list stack-sm">

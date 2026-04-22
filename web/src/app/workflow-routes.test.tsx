@@ -170,6 +170,36 @@ function installBackendMocks() {
       };
     }
 
+    if (path === `/users/${baseOverview().arbiter}/reputation`) {
+      return {
+        address: baseOverview().arbiter,
+        buyerStats: null,
+        sellerStats: null,
+        arbiterStats: {
+          address: baseOverview().arbiter,
+          role: "arbiter",
+          completed_deals_count: 3,
+          completed_milestones_count: 5,
+          dispute_count: 2,
+          dispute_wins_count: 0,
+          dispute_losses_count: 0,
+          resolved_dispute_count: 2,
+          unresolved_dispute_count: 0,
+          dispute_split_count: 1,
+          cancellation_count: 0,
+          total_volume: "1000000",
+          updated_at_block: "111",
+        },
+        truth: {
+          canonicalSource: "derived_from_events",
+          ambiguityPolicy: "claim_attribution_ambiguous_without_adjacent_same_milestone_approval",
+          disputeOutcomePolicy:
+            "count_only_recorded_disputes_with_replayable_resolution_signals; unresolved_or_ambiguous_outcomes_never_counted_as_wins",
+        },
+        freshness: staleFreshness,
+      };
+    }
+
     if (path === `/escrows/${escrowAddress}/milestones/1`) {
       return {
         amount: "1000000",
@@ -278,6 +308,9 @@ describe("workflow route hierarchy", () => {
     expect(html).toContain('data-testid="dispute-workflow-guidance"');
     expect(html).toContain('data-testid="dispute-route-authority-explanation"');
     expect(html).toContain('data-testid="dispute-workflow-blocked-reason"');
+    expect(html).toContain('data-testid="dispute-arbiter-trust-panel"');
+    expect(html).toContain('data-testid="dispute-arbiter-trust-explanation"');
+    expect(html).toContain('data-testid="dispute-arbiter-trust-stats"');
     expect(html).toContain('data-testid="dispute-authority-explanation"');
     expect(html).toContain('data-testid="dispute-finality-explanation"');
     expect(html).toContain('data-testid="dispute-truth-grid"');
@@ -285,6 +318,9 @@ describe("workflow route hierarchy", () => {
 
     expect(html.indexOf('data-testid="dispute-workflow-guidance"')).toBeLessThan(
       html.indexOf('data-testid="dispute-truth-grid"')
+    );
+    expect(html.indexOf('data-testid="dispute-arbiter-trust-panel"')).toBeLessThan(
+      html.indexOf('data-testid="dispute-context-panel"')
     );
     expect(html).toContain("Backend freshness is stale");
   });

@@ -1,4 +1,9 @@
-import type { BackendFreshnessAssessment, BackendFreshnessSurface } from "@/lib/backend";
+import type {
+  BackendFreshnessAssessment,
+  BackendFreshnessSurface,
+  BackendReputationRoleStats,
+  BackendRoleTrustAssessment,
+} from "@/lib/backend";
 import type { MilestoneActionSemantics } from "@/lib/milestone-semantics";
 import type { ActionPanelGuidance, DisputeResolutionGuidance } from "@/lib/workflow-guidance";
 
@@ -254,6 +259,35 @@ export function getDisputeAuthorityExplanationCopy(input: DisputeAuthorityExplan
   }
 
   return "Only the designated arbiter can finalize a dispute; keep authority messaging conservative until route guidance is available.";
+}
+
+export type ArbiterTrustExplanationInput = {
+  freshnessAssessment: BackendFreshnessAssessment | null | undefined;
+  truthState: "healthy" | "degraded";
+  trustAssessment: BackendRoleTrustAssessment;
+  stats: BackendReputationRoleStats | null;
+};
+
+export function getArbiterTrustExplanationCopy(input: ArbiterTrustExplanationInput): string {
+  const freshnessState = normalizeFreshnessState(input.freshnessAssessment?.state ?? null);
+
+  if (freshnessState !== "healthy") {
+    return `Arbiter trust context is conservative while backend freshness is ${freshnessState}. Treat dispute-history counters as informational only.`;
+  }
+
+  if (input.truthState !== "healthy") {
+    return "Arbiter trust truth metadata is degraded. Treat dispute-history counters as conservative directional context only.";
+  }
+
+  if (!input.stats) {
+    return "Arbiter trust counters are unavailable from backend role stats. Keep authority/finality claims tied to live dispute semantics only.";
+  }
+
+  if (input.trustAssessment.state !== "healthy") {
+    return `${input.trustAssessment.message} Keep dispute authority and finality wording conservative.`;
+  }
+
+  return "Arbiter trust counters are healthy backend-derived context. They inform reputation history but never change arbiter-only dispute authority.";
 }
 
 export type DisputeFinalityExplanationInput = {

@@ -5,6 +5,7 @@ import { deriveMilestoneActionSemantics } from "@/lib/milestone-semantics";
 import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import {
   getActionAuthorityExplanationCopy,
+  getArbiterTrustExplanationCopy,
   getDealOverviewTrustExplanationCopy,
   getDisputeAuthorityExplanationCopy,
   getDisputeFinalityExplanationCopy,
@@ -329,5 +330,65 @@ describe("dispute authority/finality explanations", () => {
 
     expect(copy).toContain("conservative");
     expect(copy).toContain("stale");
+  });
+});
+
+describe("getArbiterTrustExplanationCopy", () => {
+  it("keeps arbiter trust copy conservative when freshness is degraded", () => {
+    const copy = getArbiterTrustExplanationCopy({
+      freshnessAssessment: makeFreshnessAssessment({ state: "stale", degraded: true }),
+      truthState: "healthy",
+      trustAssessment: {
+        state: "degraded",
+        message: "Arbiter trust metrics are currently degraded because backend freshness is stale.",
+      },
+      stats: {
+        address: "0x4444444444444444444444444444444444444444",
+        role: "arbiter",
+        completedDealsCount: 3,
+        completedMilestonesCount: 5,
+        disputeCount: 2,
+        disputeWinsCount: 0,
+        disputeLossesCount: 0,
+        resolvedDisputeCount: 2,
+        unresolvedDisputeCount: 0,
+        disputeSplitCount: 1,
+        cancellationCount: 0,
+        totalVolume: "1000000",
+        updatedAtBlock: "100",
+      },
+    });
+
+    expect(copy).toContain("conservative");
+    expect(copy).toContain("stale");
+  });
+
+  it("returns healthy informational framing when trust signals are valid", () => {
+    const copy = getArbiterTrustExplanationCopy({
+      freshnessAssessment: makeFreshnessAssessment(),
+      truthState: "healthy",
+      trustAssessment: {
+        state: "healthy",
+        message: "Arbiter trust metrics are backend-derived and informational only (not settlement-authoritative).",
+      },
+      stats: {
+        address: "0x4444444444444444444444444444444444444444",
+        role: "arbiter",
+        completedDealsCount: 3,
+        completedMilestonesCount: 5,
+        disputeCount: 2,
+        disputeWinsCount: 0,
+        disputeLossesCount: 0,
+        resolvedDisputeCount: 2,
+        unresolvedDisputeCount: 0,
+        disputeSplitCount: 1,
+        cancellationCount: 0,
+        totalVolume: "1000000",
+        updatedAtBlock: "100",
+      },
+    });
+
+    expect(copy).toContain("inform reputation history");
+    expect(copy).toContain("never change arbiter-only dispute authority");
   });
 });
