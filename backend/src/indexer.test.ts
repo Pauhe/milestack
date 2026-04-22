@@ -77,11 +77,11 @@ test("syncIndexer is replay-safe and preserves deterministic projections across 
     assert.equal(firstRun.replayedEventCount, 6);
     assert.equal(getEventCount(), 6);
 
-    const escrowAfterFirstRun = getEscrow(ESCROW_ADDRESS);
+    const escrowAfterFirstRun = getEscrow(31337, ESCROW_ADDRESS);
     assert.ok(escrowAfterFirstRun);
     assert.equal(escrowAfterFirstRun.deal_status, dealStatusCompleted);
 
-    const milestoneAfterFirstRun = getMilestone(ESCROW_ADDRESS, 0);
+    const milestoneAfterFirstRun = getMilestone(31337, ESCROW_ADDRESS, 0);
     assert.ok(milestoneAfterFirstRun);
     assert.equal(milestoneAfterFirstRun.status, milestoneStatusPaidOut);
 
@@ -107,11 +107,11 @@ test("syncIndexer is replay-safe and preserves deterministic projections across 
     assert.equal(rebuildResult.replayedEventCount, 6);
     assert.equal(getEventCount(), 6);
 
-    const escrowAfterRebuild = getEscrow(ESCROW_ADDRESS);
+    const escrowAfterRebuild = getEscrow(31337, ESCROW_ADDRESS);
     assert.ok(escrowAfterRebuild);
     assert.equal(escrowAfterRebuild.deal_status, dealStatusCompleted);
 
-    const milestoneAfterRebuild = getMilestone(ESCROW_ADDRESS, 0);
+    const milestoneAfterRebuild = getMilestone(31337, ESCROW_ADDRESS, 0);
     assert.ok(milestoneAfterRebuild);
     assert.equal(milestoneAfterRebuild.status, milestoneStatusPaidOut);
 
@@ -206,7 +206,7 @@ test("rebuildIndexerFromPersistedEvents fails on malformed payload JSON and mark
         payload_json
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `
-  ).run(31337, "10", "0xmalformed", "0", ESCROW_ADDRESS, "EscrowCreated", "Escrow deployed", "{not-json");
+  ).run(deploymentManifest.chain.chainId, "10", "0xmalformed", "0", ESCROW_ADDRESS, "EscrowCreated", "Escrow deployed", "{not-json");
 
   patchSyncHealthState({
     status: "healthy",

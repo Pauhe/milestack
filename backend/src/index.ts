@@ -315,7 +315,7 @@ export function createApp() {
   app.get("/escrows/:address/milestones", (request, response) => {
     try {
       const address = getAddress(request.params.address);
-      const escrow = getEscrow(address);
+      const escrow = getEscrow(deploymentManifest.chain.chainId, address);
       if (!escrow) {
         response.status(404).json({ error: "Escrow not indexed" });
         return;
@@ -323,7 +323,7 @@ export function createApp() {
 
       const metadataTruth = deriveMetadataTruth(escrow.metadata_hash, getMetadataCache(escrow.metadata_hash));
       const nowUnixSeconds = Math.floor(Date.now() / 1000);
-      const milestones = listMilestones(address).map((milestone) => {
+      const milestones = listMilestones(deploymentManifest.chain.chainId, address).map((milestone) => {
         const metadataVerification = readMilestoneMetadataTruth(metadataTruth.payload, milestone);
 
         return {
@@ -350,7 +350,7 @@ export function createApp() {
   app.get("/escrows/:address", async (request, response) => {
     try {
       const address = getAddress(request.params.address);
-      const overview = getEscrow(address);
+      const overview = getEscrow(deploymentManifest.chain.chainId, address);
       if (!overview) {
         response.status(404).json({ error: "Escrow not indexed" });
         return;
@@ -390,13 +390,13 @@ export function createApp() {
     try {
       const address = getAddress(request.params.address);
       const milestoneId = Number(request.params.milestoneId);
-      const escrow = getEscrow(address);
+      const escrow = getEscrow(deploymentManifest.chain.chainId, address);
       if (!escrow) {
         response.status(404).json({ error: "Escrow not indexed" });
         return;
       }
 
-      const milestone = getMilestone(address, milestoneId);
+      const milestone = getMilestone(deploymentManifest.chain.chainId, address, milestoneId);
       if (!milestone) {
         response.status(404).json({ error: "Milestone not indexed" });
         return;
@@ -421,8 +421,8 @@ export function createApp() {
   app.get("/escrows/:address/timeline", async (request, response) => {
     try {
       const address = getAddress(request.params.address);
-      const participants = getEscrowParticipants(address);
-      const rawTimeline = getTimeline(address) as Array<{ event_name: string; payload_json: string; summary: string }>;
+      const participants = getEscrowParticipants(deploymentManifest.chain.chainId, address);
+      const rawTimeline = getTimeline(deploymentManifest.chain.chainId, address) as Array<{ event_name: string; payload_json: string; summary: string }>;
 
       const timeline = rawTimeline.map((event, index) => {
         const payload = JSON.parse(event.payload_json) as Record<string, unknown>;

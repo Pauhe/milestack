@@ -1,6 +1,7 @@
 import { db } from "./db.js";
 
 export type EscrowRow = {
+  chain_id: number;
   address: string;
   buyer_address: string;
   seller_address: string;
@@ -20,6 +21,7 @@ export type EscrowRow = {
 };
 
 export type MilestoneRow = {
+  chain_id: number;
   escrow_address: string;
   milestone_id: number;
   amount: string;
@@ -46,7 +48,15 @@ export type EventRow = {
   payload_json: string;
 };
 
+function normalizeChainAndAddress(chainId: number, address: string) {
+  return {
+    chainId,
+    address: address.toLowerCase(),
+  };
+}
+
 export function upsertEscrow(input: {
+  chainId: number;
   address: string;
   buyerAddress: string;
   sellerAddress: string;
@@ -64,9 +74,12 @@ export function upsertEscrow(input: {
   createdAtBlock: string;
   updatedAtBlock: string;
 }) {
+  const key = normalizeChainAndAddress(input.chainId, input.address);
+
   db.prepare(
     `
       INSERT INTO escrows (
+        chain_id,
         address,
         buyer_address,
         seller_address,
@@ -83,8 +96,8 @@ export function upsertEscrow(input: {
         total_fees_collected,
         created_at_block,
         updated_at_block
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(address) DO UPDATE SET
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(chain_id, address) DO UPDATE SET
         buyer_address = excluded.buyer_address,
         seller_address = excluded.seller_address,
         arbiter_address = excluded.arbiter_address,
@@ -101,7 +114,8 @@ export function upsertEscrow(input: {
         updated_at_block = excluded.updated_at_block
     `
   ).run(
-    input.address.toLowerCase(),
+    key.chainId,
+    key.address,
     input.buyerAddress,
     input.sellerAddress,
     input.arbiterAddress,
@@ -121,6 +135,7 @@ export function upsertEscrow(input: {
 }
 
 export function upsertMilestone(input: {
+  chainId: number;
   escrowAddress: string;
   milestoneId: number;
   amount: string;
@@ -135,9 +150,12 @@ export function upsertMilestone(input: {
   metadataTitle: string | null;
   metadataDescription: string | null;
 }) {
+  const key = normalizeChainAndAddress(input.chainId, input.escrowAddress);
+
   db.prepare(
     `
       INSERT INTO milestones (
+        chain_id,
         escrow_address,
         milestone_id,
         amount,
@@ -151,8 +169,8 @@ export function upsertMilestone(input: {
         seller_award,
         metadata_title,
         metadata_description
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(escrow_address, milestone_id) DO UPDATE SET
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(chain_id, escrow_address, milestone_id) DO UPDATE SET
         amount = excluded.amount,
         status = excluded.status,
         review_window_seconds = excluded.review_window_seconds,
@@ -166,7 +184,8 @@ export function upsertMilestone(input: {
         metadata_description = excluded.metadata_description
     `
   ).run(
-    input.escrowAddress.toLowerCase(),
+    key.chainId,
+    key.address,
     input.milestoneId,
     input.amount,
     input.status,
@@ -221,50 +240,57 @@ export function insertEvent(input: {
   return result.changes === 1;
 }
 
-export function getEscrow(address: string) {
-  return db.prepare("SELECT * FROM escrows WHERE address = ?").get(address.toLowerCase()) as EscrowRow | undefined;
-}
-
-export function getMilestone(address: string, milestoneId: number) {
+export function getEscrow(chainId: number, address: string) {
+  const key = normalizeChainAndAddress(chainId, address);
   return db
-    .prepare("SELECT * FROM milestones WHERE escrow_address = ? AND milestone_id = ?")
-    .get(address.toLowerCase(), milestoneId) as MilestoneRow | undefined;
+    .prepare("SELECT * FROM escrows WHERE chain_id = ? AND address = ?")
+    .get(key.chainId, key.address) as EscrowRow | undefined;
 }
 
-export function listMilestones(address: string) {
+export function getMilestone(chainId: number, address: string, milestoneId: number) {
+  const key = normalizeChainAndAddress(chainId, address);
+  return db
+    .prepare("SELECT * FROM milestones WHERE chain_id = ? AND escrow_address = ? AND milestone_id = ?")
+    .get(key.chainId, key.address, milestoneId) as MilestoneRow | undefined;
+}
+
+export function listMilestones(chainId: number, address: string) {
+  const key = normalizeChainAndAddress(chainId, address);
   return db
     .prepare(
       `
         SELECT * FROM milestones
-        WHERE escrow_address = ?
+        WHERE chain_id = ? AND escrow_address = ?
         ORDER BY milestone_id ASC
       `
     )
-    .all(address.toLowerCase()) as MilestoneRow[];
+    .all(key.chainId, key.address) as MilestoneRow[];
 }
 
-export function getTimeline(address: string) {
+export function getTimeline(chainId: number, address: string) {
+  const key = normalizeChainAndAddress(chainId, address);
   return db
     .prepare(
       `
         SELECT * FROM events
-        WHERE escrow_address = ?
+        WHERE chain_id = ? AND escrow_address = ?
         ORDER BY CAST(block_number AS INTEGER) ASC, CAST(log_index AS INTEGER) ASC
       `
     )
-    .all(address.toLowerCase());
+    .all(key.chainId, key.address);
 }
 
-export function getEscrowParticipants(address: string) {
+export function getEscrowParticipants(chainId: number, address: string) {
+  const key = normalizeChainAndAddress(chainId, address);
   return db
     .prepare(
       `
         SELECT buyer_address, seller_address, arbiter_address
         FROM escrows
-        WHERE address = ?
+        WHERE chain_id = ? AND address = ?
       `
     )
-    .get(address.toLowerCase()) as
+    .get(key.chainId, key.address) as
     | {
         buyer_address: string;
         seller_address: string;
@@ -273,23 +299,32 @@ export function getEscrowParticipants(address: string) {
     | undefined;
 }
 
-export function listKnownEscrows(): string[] {
-  return db.prepare("SELECT address FROM escrows").all().map((row) => (row as { address: string }).address);
+export function listKnownEscrows(chainId: number): string[] {
+  return db
+    .prepare("SELECT address FROM escrows WHERE chain_id = ?")
+    .all(chainId)
+    .map((row) => (row as { address: string }).address);
 }
 
-export function listAllEvents() {
+export function listAllEvents(chainId: number) {
   return db
     .prepare(
       `
         SELECT * FROM events
+        WHERE chain_id = ?
         ORDER BY CAST(block_number AS INTEGER) ASC, CAST(log_index AS INTEGER) ASC
       `
     )
-    .all() as EventRow[];
+    .all(chainId) as EventRow[];
 }
 
-export function getEventCount() {
-  const row = db.prepare("SELECT COUNT(*) AS count FROM events").get() as { count: number };
+export function getEventCount(chainId?: number) {
+  if (chainId === undefined) {
+    const row = db.prepare("SELECT COUNT(*) AS count FROM events").get() as { count: number };
+    return row.count;
+  }
+
+  const row = db.prepare("SELECT COUNT(*) AS count FROM events WHERE chain_id = ?").get(chainId) as { count: number };
   return row.count;
 }
 

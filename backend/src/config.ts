@@ -94,7 +94,7 @@ export function validateDeploymentManifest(manifest: DeploymentManifest, expecte
   if (manifest.config.metadataVisibility !== undefined) {
     assertManifest(
       manifest.config.metadataVisibility === "public",
-      "config.metadataVisibility must be \"public\" for MVP"
+      'config.metadataVisibility must be "public" for MVP'
     );
   }
 
@@ -118,11 +118,30 @@ export function validateDeploymentManifest(manifest: DeploymentManifest, expecte
   } as DeploymentManifest;
 }
 
+function validateTrackedManifests() {
+  const entries = Object.entries(manifests) as Array<[DeploymentEnvironment, DeploymentManifest]>;
+  return Object.fromEntries(
+    entries.map(([environment, manifest]) => [environment, validateDeploymentManifest(manifest, environment)])
+  ) as Record<DeploymentEnvironment, DeploymentManifest>;
+}
+
+export const validatedDeploymentManifests = validateTrackedManifests();
+
+export function listSupportedDeploymentEnvironments(): DeploymentEnvironment[] {
+  return Object.keys(validatedDeploymentManifests) as DeploymentEnvironment[];
+}
+
+export function listSupportedManifestChainIds(): number[] {
+  return [...new Set(Object.values(validatedDeploymentManifests).map((manifest) => manifest.chain.chainId))].sort(
+    (left, right) => left - right
+  );
+}
+
 export function getDeploymentEnvironment(): DeploymentEnvironment {
   const environment = process.env.DEPLOYMENT_ENV ?? "local";
 
-  if (!(environment in manifests)) {
-    const supported = Object.keys(manifests).join(", ");
+  if (!(environment in validatedDeploymentManifests)) {
+    const supported = listSupportedDeploymentEnvironments().join(", ");
     throw new Error(`Unsupported DEPLOYMENT_ENV "${environment}". Supported environments: ${supported}`);
   }
 
@@ -132,7 +151,7 @@ export function getDeploymentEnvironment(): DeploymentEnvironment {
 export const deploymentEnvironment = getDeploymentEnvironment();
 
 export function getDeploymentManifest(): DeploymentManifest {
-  return validateDeploymentManifest(manifests[deploymentEnvironment], deploymentEnvironment);
+  return validatedDeploymentManifests[deploymentEnvironment];
 }
 
 export const deploymentManifest = getDeploymentManifest();

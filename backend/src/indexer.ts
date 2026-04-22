@@ -148,7 +148,7 @@ export async function syncIndexer() {
     persistSuccessfulOutcome(discoveredHead, rebuildResult.degradedError);
 
     return {
-      escrowsIndexed: listKnownEscrows().length,
+      escrowsIndexed: listKnownEscrows(activePublicClient.chain.id).length,
       lastSyncedBlock: discoveredHead.toString(),
       insertedEventCount,
       replayedEventCount: rebuildResult.replayedEventCount,
@@ -186,7 +186,7 @@ export async function rebuildIndexerFromPersistedEvents() {
     persistSuccessfulOutcome(syncBeforeRun.lastSuccessfulBlock, rebuildResult.degradedError);
 
     return {
-      escrowsIndexed: listKnownEscrows().length,
+      escrowsIndexed: listKnownEscrows(activePublicClient.chain.id).length,
       lastSyncedBlock: syncBeforeRun.lastSuccessfulBlock.toString(),
       insertedEventCount: 0,
       replayedEventCount: rebuildResult.replayedEventCount,
@@ -245,7 +245,7 @@ async function discoverLogs(fromBlockExclusive: bigint) {
     });
   }
 
-  const knownEscrows = new Set([...listKnownEscrows(), ...discoveredEscrows]);
+  const knownEscrows = new Set([...listKnownEscrows(activePublicClient.chain.id), ...discoveredEscrows]);
 
   const decodedEscrowLogs: DecodedLog[] = [];
   for (const escrowAddress of knownEscrows) {
@@ -304,7 +304,7 @@ function persistEvents(logs: DecodedLog[]) {
 async function rebuildProjectionsFromEvents(updatedAtBlock: bigint): Promise<{ replayedEventCount: number; degradedError: string | null }> {
   clearDerivedReadModels();
 
-  const eventRows = listAllEvents();
+  const eventRows = listAllEvents(activePublicClient.chain.id);
   const rebuildEscrows = new Map<string, RebuildEscrow>();
   const metadataCache = listMetadataCache();
 
@@ -316,7 +316,7 @@ async function rebuildProjectionsFromEvents(updatedAtBlock: bigint): Promise<{ r
       continue;
     }
 
-    const escrow = rebuildEscrows.get(row.escrow_address.toLowerCase());
+    const escrow = rebuildEscrows.get(`${row.chain_id}:${row.escrow_address.toLowerCase()}`);
     if (!escrow) {
       continue;
     }
@@ -335,6 +335,7 @@ async function rebuildProjectionsFromEvents(updatedAtBlock: bigint): Promise<{ r
     const milestones = [...escrow.milestones.values()].sort((a, b) => a.milestoneId - b.milestoneId);
 
     upsertEscrow({
+      chainId: activePublicClient.chain.id,
       address: escrow.address,
       buyerAddress: escrow.buyerAddress,
       sellerAddress: escrow.sellerAddress,
@@ -361,6 +362,7 @@ async function rebuildProjectionsFromEvents(updatedAtBlock: bigint): Promise<{ r
         : null;
 
       upsertMilestone({
+        chainId: activePublicClient.chain.id,
         escrowAddress: escrow.address,
         milestoneId: milestone.milestoneId,
         amount: milestone.amount.toString(),
@@ -422,6 +424,7 @@ function persistSuccessfulOutcome(latestBlock: bigint, degradedError: string | n
 
 function applyEscrowCreatedEvent(rebuildEscrows: Map<string, RebuildEscrow>, event: ParsedEventEnvelope) {
   const address = asString(event.payload.escrow, "EscrowCreated.escrow").toLowerCase();
+  const mapKey = `${activePublicClient.chain.id}:${address}`;
   const milestoneCount = Number(asBigInt(event.payload.milestoneCount, "EscrowCreated.milestoneCount"));
 
   const escrow: RebuildEscrow = {
@@ -462,7 +465,7 @@ function applyEscrowCreatedEvent(rebuildEscrows: Map<string, RebuildEscrow>, eve
     });
   }
 
-  rebuildEscrows.set(address, escrow);
+  rebuildEscrows.set(mapKey, escrow);
 }
 
 function applyEscrowLifecycleEvent(escrow: RebuildEscrow, event: ParsedEventEnvelope) {

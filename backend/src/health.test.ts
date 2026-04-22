@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { deploymentManifest } from "./config.js";
 import { db, patchSyncHealthState } from "./db.js";
 import { createApp } from "./index.js";
 import { insertEvent, upsertEscrow, upsertMetadataCache, upsertMilestone } from "./repository.js";
@@ -32,6 +33,7 @@ function resetLoopState() {
 
 function seedEscrow() {
   upsertEscrow({
+    chainId: deploymentManifest.chain.chainId,
     address: ESCROW_ADDRESS,
     buyerAddress: BUYER,
     sellerAddress: SELLER,
@@ -60,6 +62,7 @@ function seedEscrow() {
   });
 
   upsertMilestone({
+    chainId: deploymentManifest.chain.chainId,
     escrowAddress: ESCROW_ADDRESS,
     milestoneId: 0,
     amount: "1000",
@@ -320,7 +323,7 @@ test("timeline endpoint preserves ambiguous-but-truthful claim attribution", asy
   seedEscrow();
 
   insertEvent({
-    chainId: 31337,
+    chainId: deploymentManifest.chain.chainId,
     blockNumber: "20",
     txHash: "0x10000000000000000000000000000000000000000000000000000000000000aa",
     logIndex: "0",
@@ -331,7 +334,7 @@ test("timeline endpoint preserves ambiguous-but-truthful claim attribution", asy
   });
 
   insertEvent({
-    chainId: 31337,
+    chainId: deploymentManifest.chain.chainId,
     blockNumber: "21",
     txHash: "0x10000000000000000000000000000000000000000000000000000000000000ab",
     logIndex: "0",

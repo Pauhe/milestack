@@ -19,7 +19,8 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS escrows (
-    address TEXT PRIMARY KEY,
+    chain_id INTEGER NOT NULL,
+    address TEXT NOT NULL,
     buyer_address TEXT NOT NULL,
     seller_address TEXT NOT NULL,
     arbiter_address TEXT NOT NULL,
@@ -34,10 +35,12 @@ db.exec(`
     total_refunded_to_buyer TEXT NOT NULL,
     total_fees_collected TEXT NOT NULL,
     created_at_block TEXT NOT NULL,
-    updated_at_block TEXT NOT NULL
+    updated_at_block TEXT NOT NULL,
+    PRIMARY KEY (chain_id, address)
   );
 
   CREATE TABLE IF NOT EXISTS milestones (
+    chain_id INTEGER NOT NULL,
     escrow_address TEXT NOT NULL,
     milestone_id INTEGER NOT NULL,
     amount TEXT NOT NULL,
@@ -51,7 +54,7 @@ db.exec(`
     seller_award TEXT NOT NULL,
     metadata_title TEXT,
     metadata_description TEXT,
-    PRIMARY KEY (escrow_address, milestone_id)
+    PRIMARY KEY (chain_id, escrow_address, milestone_id)
   );
 
   CREATE TABLE IF NOT EXISTS events (
@@ -63,7 +66,7 @@ db.exec(`
     event_name TEXT NOT NULL,
     summary TEXT NOT NULL,
     payload_json TEXT NOT NULL,
-    PRIMARY KEY (tx_hash, log_index)
+    PRIMARY KEY (chain_id, tx_hash, log_index)
   );
 
   CREATE TABLE IF NOT EXISTS user_role_stats (
@@ -92,6 +95,114 @@ db.exec(`
     updated_at_block TEXT NOT NULL
   );
 `);
+
+const escrowsColumns = db.prepare("PRAGMA table_info(escrows)").all() as Array<{ name: string }>;
+const hasEscrowsColumn = (columnName: string) => escrowsColumns.some((item) => item.name === columnName);
+
+if (!hasEscrowsColumn("chain_id")) {
+  db.exec("ALTER TABLE escrows RENAME TO escrows_legacy;");
+  db.exec(`
+    CREATE TABLE escrows (
+      chain_id INTEGER NOT NULL,
+      address TEXT NOT NULL,
+      buyer_address TEXT NOT NULL,
+      seller_address TEXT NOT NULL,
+      arbiter_address TEXT NOT NULL,
+      token_address TEXT NOT NULL,
+      metadata_hash TEXT NOT NULL,
+      milestone_count INTEGER NOT NULL,
+      deal_status INTEGER NOT NULL,
+      current_milestone_index INTEGER NOT NULL,
+      active_dispute_milestone_id TEXT,
+      total_funded TEXT NOT NULL,
+      total_released_to_seller TEXT NOT NULL,
+      total_refunded_to_buyer TEXT NOT NULL,
+      total_fees_collected TEXT NOT NULL,
+      created_at_block TEXT NOT NULL,
+      updated_at_block TEXT NOT NULL,
+      PRIMARY KEY (chain_id, address)
+    );
+  `);
+  db.exec("DROP TABLE escrows_legacy;");
+}
+
+const milestonesColumns = db.prepare("PRAGMA table_info(milestones)").all() as Array<{ name: string }>;
+const hasMilestonesColumn = (columnName: string) => milestonesColumns.some((item) => item.name === columnName);
+
+if (!hasMilestonesColumn("chain_id")) {
+  db.exec("ALTER TABLE milestones RENAME TO milestones_legacy;");
+  db.exec(`
+    CREATE TABLE milestones (
+      chain_id INTEGER NOT NULL,
+      escrow_address TEXT NOT NULL,
+      milestone_id INTEGER NOT NULL,
+      amount TEXT NOT NULL,
+      status INTEGER NOT NULL,
+      review_window_seconds INTEGER NOT NULL,
+      submitted_at TEXT NOT NULL,
+      review_deadline TEXT NOT NULL,
+      evidence_hash TEXT NOT NULL,
+      dispute_hash TEXT NOT NULL,
+      buyer_award TEXT NOT NULL,
+      seller_award TEXT NOT NULL,
+      metadata_title TEXT,
+      metadata_description TEXT,
+      PRIMARY KEY (chain_id, escrow_address, milestone_id)
+    );
+  `);
+  db.exec("DROP TABLE milestones_legacy;");
+}
+
+const eventsPrimaryKeyCheck = db
+  .prepare(
+    `
+      SELECT sql
+      FROM sqlite_master
+      WHERE type = 'table' AND name = 'events'
+    `
+  )
+  .get() as { sql?: string } | undefined;
+
+const eventsUsesChainPrimaryKey = Boolean(eventsPrimaryKeyCheck?.sql?.includes("PRIMARY KEY (chain_id, tx_hash, log_index)"));
+if (!eventsUsesChainPrimaryKey) {
+  db.exec("ALTER TABLE events RENAME TO events_legacy;");
+  db.exec(`
+    CREATE TABLE events (
+      chain_id INTEGER NOT NULL,
+      block_number TEXT NOT NULL,
+      tx_hash TEXT NOT NULL,
+      log_index TEXT NOT NULL,
+      escrow_address TEXT NOT NULL,
+      event_name TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      PRIMARY KEY (chain_id, tx_hash, log_index)
+    );
+  `);
+  db.exec(`
+    INSERT OR IGNORE INTO events (
+      chain_id,
+      block_number,
+      tx_hash,
+      log_index,
+      escrow_address,
+      event_name,
+      summary,
+      payload_json
+    )
+    SELECT
+      chain_id,
+      block_number,
+      tx_hash,
+      log_index,
+      escrow_address,
+      event_name,
+      summary,
+      payload_json
+    FROM events_legacy;
+  `);
+  db.exec("DROP TABLE events_legacy;");
+}
 
 const userRoleStatsColumns = db.prepare("PRAGMA table_info(user_role_stats)").all() as Array<{ name: string }>;
 const hasUserRoleStatsColumn = (columnName: string) => userRoleStatsColumns.some((item) => item.name === columnName);
