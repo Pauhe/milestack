@@ -22,10 +22,6 @@ test("runSyncOnce updates observable sync state on success", async () => {
     chain: { id: 31337 },
     getBlockNumber: async () => 1n,
     getLogs: async () => [],
-    multicall: async () => [],
-    readContract: async () => {
-      throw new Error("not used");
-    },
   });
 
   try {
