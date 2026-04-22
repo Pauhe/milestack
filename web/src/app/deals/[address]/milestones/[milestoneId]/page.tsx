@@ -16,6 +16,7 @@ import { getMilestoneStatusLabel } from "@/lib/status";
 import { MilestoneActions } from "@/components/milestone-actions";
 import {
   WorkflowCallout,
+  WorkflowFreshnessBanner,
   WorkflowSectionHeader,
   WorkflowStatusRow,
   WorkflowSurfacePanel,
@@ -28,6 +29,7 @@ import { deriveActionPanelGuidance } from "@/lib/workflow-guidance";
 import {
   getActionAuthorityExplanationCopy,
   getReviewDeadlineExplanationCopy,
+  getRouteGuidanceWithFreshnessOverlay,
 } from "@/lib/workflow-explanations";
 
 type MilestoneDetailPageProps = {
@@ -155,14 +157,12 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
     disputeRouteHref,
   });
 
-  const routeGuidance = freshnessAssessment.state === "healthy"
-    ? guidance
-    : {
-        ...guidance,
-        nextStepMessage: `${guidance.nextStepMessage} Backend freshness is ${freshnessAssessment.state}; treat indexed eligibility as conservative until refreshed.`,
-        blockedReason: guidance.blockedReason
-          ?? "Backend freshness is degraded; role actions stay conservative until eligibility truth reloads.",
-      };
+  const routeGuidance = getRouteGuidanceWithFreshnessOverlay({
+    guidance,
+    freshnessAssessment,
+    defaultBlockedReason:
+      "Backend freshness is degraded; role actions stay conservative until eligibility truth reloads.",
+  });
 
   const reviewDeadlineExplanation = getReviewDeadlineExplanationCopy({
     reviewDeadline: backendMilestone?.review_deadline ?? milestone.reviewDeadline,
@@ -189,13 +189,11 @@ export default async function MilestoneDetailPage({ params }: MilestoneDetailPag
       </div>
 
       {freshnessBanner ? (
-        <article className="panel stack-sm" data-testid="backend-freshness-banner">
-          <h2>{freshnessBanner.title}</h2>
-          <p>{freshnessBanner.body}</p>
-          {freshnessAssessment.error ? (
-            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
-          ) : null}
-        </article>
+        <WorkflowFreshnessBanner
+          title={freshnessBanner.title}
+          body={freshnessBanner.body}
+          detail={freshnessAssessment.error}
+        />
       ) : null}
 
       <WorkflowSurfacePanel data-testid="milestone-workflow-guidance">

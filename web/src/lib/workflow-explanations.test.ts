@@ -11,6 +11,7 @@ import {
   getDisputeFinalityExplanationCopy,
   getFreshnessExplanationCopy,
   getReviewDeadlineExplanationCopy,
+  getRouteGuidanceWithFreshnessOverlay,
   getTimelineTruthExplanationCopy,
 } from "@/lib/workflow-explanations";
 
@@ -267,6 +268,103 @@ describe("getActionAuthorityExplanationCopy", () => {
     });
 
     expect(copy).toContain("currently unavailable");
+  });
+});
+
+describe("getRouteGuidanceWithFreshnessOverlay", () => {
+  it("leaves healthy guidance unchanged", () => {
+    const guidance = deriveActionPanelGuidance({
+      role: "buyer",
+      isConnected: true,
+      isWrongChain: false,
+      hasCurrentMilestone: true,
+      semantics: deriveMilestoneActionSemantics({
+        role: "buyer",
+        status: 2,
+        milestoneId: 1,
+        currentMilestoneIndex: 1,
+        derived: {
+          isCurrent: true,
+          isBlocked: false,
+          buyerCanApprove: true,
+          buyerCanDispute: true,
+          sellerCanClaim: false,
+        },
+      }),
+    });
+
+    const output = getRouteGuidanceWithFreshnessOverlay({
+      guidance,
+      freshnessAssessment: makeFreshnessAssessment(),
+      defaultBlockedReason: "fallback",
+    });
+
+    expect(output).toEqual(guidance);
+  });
+
+  it("adds conservative overlay + fallback blocked reason on malformed freshness", () => {
+    const guidance = deriveActionPanelGuidance({
+      role: "arbiter",
+      isConnected: true,
+      isWrongChain: false,
+      hasCurrentMilestone: true,
+      semantics: deriveMilestoneActionSemantics({
+        role: "arbiter",
+        status: 5,
+        milestoneId: 2,
+        currentMilestoneIndex: 2,
+        activeDisputeMilestoneId: 2,
+      }),
+    });
+
+    const output = getRouteGuidanceWithFreshnessOverlay({
+      guidance: {
+        ...guidance,
+        blockedReason: null,
+      },
+      freshnessAssessment: {
+        ...makeFreshnessAssessment(),
+        state: "mystery-state",
+      } as unknown as BackendFreshnessAssessment,
+      defaultBlockedReason: "Backend freshness degraded fallback reason.",
+    });
+
+    expect(output.nextStepMessage).toContain("Backend freshness is unavailable");
+    expect(output.blockedReason).toBe("Backend freshness degraded fallback reason.");
+  });
+
+  it("does not duplicate overlay suffix when already present", () => {
+    const suffix = "Backend freshness is stale; keep actions conservative until indexed eligibility recovers.";
+    const guidance = {
+      ...deriveActionPanelGuidance({
+        role: "seller",
+        isConnected: true,
+        isWrongChain: false,
+        hasCurrentMilestone: true,
+        semantics: deriveMilestoneActionSemantics({
+          role: "seller",
+          status: 2,
+          milestoneId: 3,
+          currentMilestoneIndex: 3,
+          derived: {
+            isCurrent: true,
+            isBlocked: true,
+            buyerCanApprove: false,
+            buyerCanDispute: false,
+            sellerCanClaim: false,
+          },
+        }),
+      }),
+      nextStepMessage: `Original guidance. ${suffix}`,
+    };
+
+    const output = getRouteGuidanceWithFreshnessOverlay({
+      guidance,
+      freshnessAssessment: makeFreshnessAssessment({ state: "stale", degraded: true }),
+      defaultBlockedReason: "fallback",
+    });
+
+    expect(output.nextStepMessage).toBe(`Original guidance. ${suffix}`);
   });
 });
 

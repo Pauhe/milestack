@@ -24,6 +24,13 @@ type WorkflowCalloutProps = {
 
 type WorkflowActionGroupProps = ComponentPropsWithoutRef<"div">;
 
+type WorkflowFreshnessBannerProps = {
+  title: string;
+  body: string;
+  detail?: string | null;
+  testId?: string;
+};
+
 function joinClasses(...parts: Array<string | undefined>): string {
   return parts.filter(Boolean).join(" ");
 }
@@ -72,5 +79,20 @@ export function WorkflowActionGroup({ className, children, ...rest }: WorkflowAc
     <div className={joinClasses("stack-md workflow-surface-action-group", className)} {...rest}>
       {children}
     </div>
+  );
+}
+
+export function WorkflowFreshnessBanner({
+  title,
+  body,
+  detail,
+  testId = "backend-freshness-banner",
+}: WorkflowFreshnessBannerProps) {
+  return (
+    <article className="panel stack-sm" data-testid={testId}>
+      <h2>{title}</h2>
+      <p>{body}</p>
+      {detail ? <p className="status-text">Backend detail: {detail}</p> : null}
+    </article>
   );
 }

@@ -210,6 +210,32 @@ export type ActionAuthorityExplanationInput = {
   semantics: Pick<MilestoneActionSemantics, "blockedReason" | "claimAfterTimeoutHint"> | null;
 };
 
+export type RouteGuidanceOverlayInput = {
+  guidance: ActionPanelGuidance;
+  freshnessAssessment: BackendFreshnessAssessment | null | undefined;
+  defaultBlockedReason: string;
+};
+
+export function getRouteGuidanceWithFreshnessOverlay(
+  input: RouteGuidanceOverlayInput
+): ActionPanelGuidance {
+  const state = normalizeFreshnessState(input.freshnessAssessment?.state ?? null);
+  if (state === "healthy") {
+    return input.guidance;
+  }
+
+  const freshnessMessage = `Backend freshness is ${state}; keep actions conservative until indexed eligibility recovers.`;
+  const nextStepMessage = input.guidance.nextStepMessage.includes(freshnessMessage)
+    ? input.guidance.nextStepMessage
+    : `${input.guidance.nextStepMessage} ${freshnessMessage}`;
+
+  return {
+    ...input.guidance,
+    nextStepMessage,
+    blockedReason: input.guidance.blockedReason ?? input.defaultBlockedReason,
+  };
+}
+
 export function getActionAuthorityExplanationCopy(input: ActionAuthorityExplanationInput): string {
   if (input.guidance?.blockedReason && input.guidance.blockedReason.length > 0) {
     return input.guidance.blockedReason;

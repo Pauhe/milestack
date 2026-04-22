@@ -24,6 +24,7 @@ import { getMilestoneStatusLabel } from "@/lib/status";
 import { DisputeResolutionForm } from "@/components/dispute-resolution-form";
 import {
   WorkflowCallout,
+  WorkflowFreshnessBanner,
   WorkflowSectionHeader,
   WorkflowStatusRow,
   WorkflowSurfacePanel,
@@ -39,6 +40,7 @@ import {
   getDisputeAuthorityExplanationCopy,
   getDisputeFinalityExplanationCopy,
   getReviewDeadlineExplanationCopy,
+  getRouteGuidanceWithFreshnessOverlay,
 } from "@/lib/workflow-explanations";
 
 type DisputePageProps = {
@@ -221,14 +223,11 @@ export default async function DisputePage({ params }: DisputePageProps) {
     isExactSplit: false,
   });
 
-  const routeGuidance = freshnessAssessment.state === "healthy"
-    ? actionGuidance
-    : {
-        ...actionGuidance,
-        nextStepMessage: `${actionGuidance.nextStepMessage} Backend freshness is ${freshnessAssessment.state}; keep dispute guidance conservative until backend truth recovers.`,
-        blockedReason: actionGuidance.blockedReason
-          ?? "Backend freshness is degraded; dispute actions remain blocked until truth reloads.",
-      };
+  const routeGuidance = getRouteGuidanceWithFreshnessOverlay({
+    guidance: actionGuidance,
+    freshnessAssessment,
+    defaultBlockedReason: "Backend freshness is degraded; dispute actions remain blocked until truth reloads.",
+  });
 
   const reviewDeadlineExplanation = getReviewDeadlineExplanationCopy({
     reviewDeadline: backendMilestone?.review_deadline ?? milestone.reviewDeadline,
@@ -266,13 +265,11 @@ export default async function DisputePage({ params }: DisputePageProps) {
       </div>
 
       {freshnessBanner ? (
-        <article className="panel stack-sm" data-testid="backend-freshness-banner">
-          <h2>{freshnessBanner.title}</h2>
-          <p>{freshnessBanner.body}</p>
-          {freshnessAssessment.error ? (
-            <p className="status-text">Backend detail: {freshnessAssessment.error}</p>
-          ) : null}
-        </article>
+        <WorkflowFreshnessBanner
+          title={freshnessBanner.title}
+          body={freshnessBanner.body}
+          detail={freshnessAssessment.error}
+        />
       ) : null}
 
       <WorkflowSurfacePanel data-testid="dispute-workflow-guidance">
