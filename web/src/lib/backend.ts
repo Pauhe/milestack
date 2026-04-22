@@ -133,6 +133,7 @@ export type BackendTimelineTruth = Record<string, unknown> & {
 export type BackendReputationTruth = {
   canonicalSource: string;
   ambiguityPolicy: string;
+  disputeOutcomePolicy?: string;
 };
 
 export type BackendReputationTruthAssessment = {
@@ -201,6 +202,22 @@ export type BackendTimelineEntry = {
   truth?: BackendTimelineTruth | null;
 };
 
+export type BackendReputationRoleStats = {
+  address: string;
+  role: "buyer" | "seller" | "arbiter";
+  completedDealsCount: number;
+  completedMilestonesCount: number;
+  disputeCount: number;
+  disputeWinsCount: number;
+  disputeLossesCount: number;
+  resolvedDisputeCount: number;
+  unresolvedDisputeCount: number;
+  disputeSplitCount: number;
+  cancellationCount: number;
+  totalVolume: string;
+  updatedAtBlock: string | null;
+};
+
 export type BackendReputation = {
   address: string;
   buyerStats: Record<string, unknown> | null;
@@ -208,6 +225,11 @@ export type BackendReputation = {
   arbiterStats: Record<string, unknown> | null;
   truth?: BackendReputationTruth | null;
   freshness?: BackendFreshnessPayload | null;
+};
+
+export type BackendRoleTrustAssessment = {
+  state: "healthy" | "degraded";
+  message: string;
 };
 
 export type BackendItemsResponse<T> = {
@@ -687,6 +709,7 @@ export function getReputationTruthAssessment(
 
   const canonicalSource = safeString(truth.canonicalSource);
   const ambiguityPolicy = safeString(truth.ambiguityPolicy);
+  const disputeOutcomePolicy = safeString(truth.disputeOutcomePolicy);
 
   if (!canonicalSource || !ambiguityPolicy) {
     return {
@@ -697,7 +720,133 @@ export function getReputationTruthAssessment(
 
   return {
     state: "healthy",
-    message: `Canonical source: ${canonicalSource}. Ambiguity policy: ${ambiguityPolicy}.`,
+    message: [
+      `Canonical source: ${canonicalSource}.`,
+      `Ambiguity policy: ${ambiguityPolicy}.`,
+      disputeOutcomePolicy ? `Dispute outcome policy: ${disputeOutcomePolicy}.` : null,
+    ]
+      .filter(Boolean)
+      .join(" "),
+  };
+}
+
+function safeInteger(value: unknown): number | null {
+  if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+    return value;
+  }
+
+  if (typeof value === "string" && /^\d+$/.test(value)) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isSafeInteger(parsed) ? parsed : null;
+  }
+
+  return null;
+}
+
+function safeRole(value: unknown): "buyer" | "seller" | "arbiter" | null {
+  if (value === "buyer" || value === "seller" || value === "arbiter") {
+    return value;
+  }
+
+  return null;
+}
+
+function readRoleStatsCount(input: Record<string, unknown>, snakeKey: string, camelKey: string): number | null {
+  const snake = safeInteger(input[snakeKey]);
+  if (snake !== null) {
+    return snake;
+  }
+
+  return safeInteger(input[camelKey]);
+}
+
+export function parseBackendReputationRoleStats(
+  role: "buyer" | "seller" | "arbiter",
+  raw: unknown,
+  defaultAddress: string
+): BackendReputationRoleStats | null {
+  if (!isRecord(raw)) {
+    return null;
+  }
+
+  const parsedRole = safeRole(raw.role);
+  if (parsedRole !== role) {
+    return null;
+  }
+
+  const completedDealsCount = readRoleStatsCount(raw, "completed_deals_count", "completedDealsCount");
+  const completedMilestonesCount = readRoleStatsCount(raw, "completed_milestones_count", "completedMilestonesCount");
+  const disputeCount = readRoleStatsCount(raw, "dispute_count", "disputeCount");
+  const disputeWinsCount = readRoleStatsCount(raw, "dispute_wins_count", "disputeWinsCount");
+  const disputeLossesCount = readRoleStatsCount(raw, "dispute_losses_count", "disputeLossesCount");
+  const resolvedDisputeCount = readRoleStatsCount(raw, "resolved_dispute_count", "resolvedDisputeCount");
+  const unresolvedDisputeCount = readRoleStatsCount(raw, "unresolved_dispute_count", "unresolvedDisputeCount");
+  const disputeSplitCount = readRoleStatsCount(raw, "dispute_split_count", "disputeSplitCount");
+  const cancellationCount = readRoleStatsCount(raw, "cancellation_count", "cancellationCount");
+  const totalVolume = safeString(raw.total_volume) ?? safeString(raw.totalVolume);
+
+  if (
+    completedDealsCount === null ||
+    completedMilestonesCount === null ||
+    disputeCount === null ||
+    disputeWinsCount === null ||
+    disputeLossesCount === null ||
+    resolvedDisputeCount === null ||
+    unresolvedDisputeCount === null ||
+    disputeSplitCount === null ||
+    cancellationCount === null ||
+    totalVolume === null
+  ) {
+    return null;
+  }
+
+  return {
+    address: safeString(raw.address) ?? defaultAddress,
+    role,
+    completedDealsCount,
+    completedMilestonesCount,
+    disputeCount,
+    disputeWinsCount,
+    disputeLossesCount,
+    resolvedDisputeCount,
+    unresolvedDisputeCount,
+    disputeSplitCount,
+    cancellationCount,
+    totalVolume,
+    updatedAtBlock: safeString(raw.updated_at_block) ?? safeString(raw.updatedAtBlock),
+  };
+}
+
+export function getRoleTrustAssessment(input: {
+  roleLabel: string;
+  stats: BackendReputationRoleStats | null;
+  truth: BackendReputationTruthAssessment;
+  freshness: BackendFreshnessAssessment;
+}): BackendRoleTrustAssessment {
+  if (input.freshness.state !== "healthy") {
+    return {
+      state: "degraded",
+      message: `${input.roleLabel} trust metrics are currently degraded because backend freshness is ${input.freshness.state}.`,
+    };
+  }
+
+  if (input.truth.state !== "healthy") {
+    return {
+      state: "degraded",
+      message: `${input.roleLabel} trust metrics are currently degraded because reputation truth metadata is ${input.truth.state}.`,
+    };
+  }
+
+  if (!input.stats) {
+    return {
+      state: "degraded",
+      message: `${input.roleLabel} trust metrics are unavailable because backend role stats are missing or malformed.`,
+    };
+  }
+
+  return {
+    state: "healthy",
+    message: `${input.roleLabel} trust metrics are backend-derived and informational only (not settlement-authoritative).`,
   };
 }
 
