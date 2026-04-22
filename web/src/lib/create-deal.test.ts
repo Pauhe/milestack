@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   defaultCreateDealState,
+  listCreateDealTemplates,
   validateCreateDeal,
   type CreateDealFormState,
 } from "@/lib/create-deal";
@@ -23,6 +24,8 @@ function makeValidState(overrides: Partial<CreateDealFormState> = {}): CreateDea
         description: "Deliver first-pass wireframes.",
         amount: "1000",
         reviewWindowDays: "5",
+        expectationChecklist: "Wireframes linked\nBuyer review comments addressed",
+        evidenceGuidance: "Include links to wireframes and a short review-response summary.",
       },
     ],
     ...overrides,
@@ -65,6 +68,8 @@ describe("validateCreateDeal", () => {
             description: "Missing amount and bad review window.",
             amount: "abc",
             reviewWindowDays: "0",
+            expectationChecklist: "Criterion one",
+            evidenceGuidance: "Attach a relevant reference.",
           },
         ],
       })
@@ -87,5 +92,123 @@ describe("validateCreateDeal", () => {
     expect(first.metadataHash).not.toBeNull();
     expect(second.metadataHash).not.toBeNull();
     expect(first.metadataHash).not.toEqual(second.metadataHash);
+  });
+
+  it("embeds selected template identity and milestone expectations into hashed metadata", () => {
+    const template = listCreateDealTemplates()[0];
+    const result = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        templateId: template?.id ?? null,
+        milestones: template ? template.milestones.map((milestone) => ({ ...milestone })) : [],
+      })
+    );
+
+    expect(result.errors).toEqual([]);
+    expect(result.metadataHash).toMatch(/^0x[a-f0-9]{64}$/);
+    expect(result.metadata).toMatchObject({
+      template: {
+        id: template?.id,
+        label: template?.label,
+      },
+    });
+
+    const metadataMilestones = (result.metadata as { milestones: Array<{ expectations: { checklist: string[]; evidenceGuidance: string } }> })
+      .milestones;
+    expect(metadataMilestones.length).toBeGreaterThan(0);
+    expect(metadataMilestones[0]?.expectations.checklist.length).toBeGreaterThan(0);
+    expect(metadataMilestones[0]?.expectations.evidenceGuidance).toBeTruthy();
+  });
+
+  it("fails validation for unknown template ids", () => {
+    const result = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        templateId: "non-existent-template" as CreateDealFormState["templateId"],
+      })
+    );
+
+    expect(result.errors).toContain("Deal template is invalid. Re-select a valid template or continue without one.");
+    expect(result.metadata).toBeNull();
+    expect(result.metadataHash).toBeNull();
+  });
+
+  it("fails validation for blank checklist or evidence guidance after template edits", () => {
+    const result = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        milestones: [
+          {
+            title: "Edited milestone",
+            description: "Manual edit after selecting template.",
+            amount: "800",
+            reviewWindowDays: "4",
+            expectationChecklist: "   ",
+            evidenceGuidance: "",
+          },
+        ],
+      })
+    );
+
+    expect(result.errors).toContain("Milestone 1 checklist is required.");
+    expect(result.errors).toContain("Milestone 1 evidence guidance is required.");
+    expect(result.metadataHash).toBeNull();
+  });
+
+  it("produces deterministic hashes for identical template-backed states", () => {
+    const template = listCreateDealTemplates()[1];
+    const templateMilestones = template ? template.milestones.map((milestone) => ({ ...milestone })) : [];
+
+    const first = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        templateId: template?.id ?? null,
+        milestones: templateMilestones,
+      })
+    );
+
+    const second = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        templateId: template?.id ?? null,
+        milestones: templateMilestones.map((milestone) => ({ ...milestone })),
+      })
+    );
+
+    expect(first.errors).toEqual([]);
+    expect(second.errors).toEqual([]);
+    expect(first.metadataHash).toEqual(second.metadataHash);
+  });
+
+  it("changes hash when switching between template and manual milestone expectations", () => {
+    const template = listCreateDealTemplates()[0];
+    const templateResult = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        templateId: template?.id ?? null,
+        milestones: template ? template.milestones.map((milestone) => ({ ...milestone })) : [],
+      })
+    );
+
+    const manualResult = validateCreateDeal(
+      SELLER,
+      makeValidState({
+        templateId: null,
+        milestones: [
+          {
+            title: "Manual scope",
+            description: "Custom deliverable sequencing.",
+            amount: "2000",
+            reviewWindowDays: "6",
+            expectationChecklist: "Custom acceptance list\nManual review references",
+            evidenceGuidance: "Upload custom evidence links and handoff notes.",
+          },
+        ],
+      })
+    );
+
+    expect(templateResult.errors).toEqual([]);
+    expect(manualResult.errors).toEqual([]);
+    expect(templateResult.metadataHash).not.toEqual(manualResult.metadataHash);
   });
 });

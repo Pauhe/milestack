@@ -6,15 +6,23 @@ import { parseEventLogs, type Address, type Log } from "viem";
 import { useAccount, useConnect, useDisconnect, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 
 import { configuredChain } from "@/lib/chains";
-import { appEnv } from "@/lib/env";
 import { escrowFactoryAbi } from "@/lib/contracts/escrow-factory-abi";
+import { normalizeAddress } from "@/lib/contracts/milestone-escrow";
 import {
   defaultCreateDealState,
+  isCreateDealTemplateId,
+  listCreateDealTemplates,
   validateCreateDeal,
   type CreateDealFormState,
   type CreateDealMilestoneInput,
+  type CreateDealTemplate,
+  type CreateDealTemplateId,
 } from "@/lib/create-deal";
-import { normalizeAddress } from "@/lib/contracts/milestone-escrow";
+import { appEnv } from "@/lib/env";
+
+const DEAL_TEMPLATES = listCreateDealTemplates();
+
+type TemplateSelection = "custom" | CreateDealTemplateId;
 
 export function CreateDealForm() {
   const router = useRouter();
@@ -47,6 +55,11 @@ export function CreateDealForm() {
   const isBusy = isPending || isConfirming;
   const factoryAddress = appEnv.factoryAddress;
 
+  const selectedTemplate = useMemo(() => {
+    if (!state.templateId) return null;
+    return DEAL_TEMPLATES.find((template) => template.id === state.templateId) ?? null;
+  }, [state.templateId]);
+
   function updateField<K extends keyof CreateDealFormState>(key: K, value: CreateDealFormState[K]) {
     setState((current) => ({ ...current, [key]: value }));
   }
@@ -70,6 +83,8 @@ export function CreateDealForm() {
           description: "",
           amount: "",
           reviewWindowDays: "5",
+          expectationChecklist: "",
+          evidenceGuidance: "",
         },
       ],
     }));
@@ -82,6 +97,31 @@ export function CreateDealForm() {
     }));
   }
 
+  function applyTemplate(template: CreateDealTemplate | null) {
+    setState((current) => ({
+      ...current,
+      templateId: template?.id ?? null,
+      milestones: template
+        ? template.milestones.map((milestone) => ({ ...milestone }))
+        : current.milestones.map((milestone) => ({ ...milestone })),
+    }));
+  }
+
+  function selectTemplate(selection: TemplateSelection) {
+    if (selection === "custom") {
+      applyTemplate(null);
+      return;
+    }
+
+    if (!isCreateDealTemplateId(selection)) {
+      applyTemplate(null);
+      return;
+    }
+
+    const template = DEAL_TEMPLATES.find((entry) => entry.id === selection) ?? null;
+    applyTemplate(template);
+  }
+
   function submit() {
     if (!factoryAddress || !validation.metadataHash || validation.errors.length > 0 || isWrongChain || !address) {
       return;
@@ -92,20 +132,18 @@ export function CreateDealForm() {
     const normalizedSellerAddress = normalizeAddress(address);
     const normalizedArbiterAddress = normalizeAddress(state.arbiter);
 
-    writeContract(
-      {
-        address: normalizedFactoryAddress as Address,
-        abi: escrowFactoryAbi,
-        functionName: "createEscrow",
-        args: [
-          normalizedBuyerAddress,
-          normalizedSellerAddress,
-          normalizedArbiterAddress,
-          validation.metadataHash,
-          validation.milestoneConfigs,
-        ],
-      }
-    );
+    writeContract({
+      address: normalizedFactoryAddress as Address,
+      abi: escrowFactoryAbi,
+      functionName: "createEscrow",
+      args: [
+        normalizedBuyerAddress,
+        normalizedSellerAddress,
+        normalizedArbiterAddress,
+        validation.metadataHash,
+        validation.milestoneConfigs,
+      ],
+    });
   }
 
   return (
@@ -152,6 +190,27 @@ export function CreateDealForm() {
       <article className="panel stack-md">
         <div className="eyebrow">Deal setup</div>
         <h2>Create a milestone escrow</h2>
+
+        <label className="field stack-sm">
+          <span>Guided template</span>
+          <select
+            className="text-input"
+            onChange={(event) => selectTemplate(event.target.value as TemplateSelection)}
+            value={state.templateId ?? "custom"}
+          >
+            <option value="custom">Custom (manual milestones)</option>
+            {DEAL_TEMPLATES.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.label}
+              </option>
+            ))}
+          </select>
+          <small className="status-text">
+            Selecting a template replaces milestone defaults. You can still edit every field before deploy.
+          </small>
+        </label>
+
+        {selectedTemplate ? <p className="status-text">{selectedTemplate.description}</p> : null}
 
         <div className="grid-two">
           <label className="field stack-sm">
@@ -238,6 +297,26 @@ export function CreateDealForm() {
                 onChange={(event) => updateMilestone(index, { description: event.target.value })}
                 placeholder="Describe the deliverable and review expectations."
                 value={milestone.description}
+              />
+            </label>
+
+            <label className="field stack-sm">
+              <span>Expectation checklist (one item per line)</span>
+              <textarea
+                className="text-input text-input--multiline"
+                onChange={(event) => updateMilestone(index, { expectationChecklist: event.target.value })}
+                placeholder={"Acceptance criterion one\nAcceptance criterion two"}
+                value={milestone.expectationChecklist}
+              />
+            </label>
+
+            <label className="field stack-sm">
+              <span>Evidence guidance</span>
+              <textarea
+                className="text-input text-input--multiline"
+                onChange={(event) => updateMilestone(index, { evidenceGuidance: event.target.value })}
+                placeholder="Describe links, notes, or artifacts expected in a submission."
+                value={milestone.evidenceGuidance}
               />
             </label>
 

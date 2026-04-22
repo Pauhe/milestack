@@ -2,6 +2,8 @@
   "name": "milestack-root-verification",
   "private": true,
   "scripts": {
+    "test": "npm --prefix web test --",
+    "lint": "npm --prefix web run lint",
     "test:rehearsal-recovery": "playwright test tests/rehearsal-recovery.spec.ts"
   },
   "devDependencies": {
