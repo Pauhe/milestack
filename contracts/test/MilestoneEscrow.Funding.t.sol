@@ -7,9 +7,12 @@ import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
 import {
     DealConfig,
     DealStatus,
+    DelegatedAuthority,
     Milestone,
     MilestoneConfig,
-    MilestoneStatus
+    MilestoneStatus,
+    TopologyParticipant,
+    WidenedAuthorityConfig
 } from "src/MilestackTypes.sol";
 import {
     Unauthorized,
@@ -46,7 +49,7 @@ contract MilestoneEscrowFundingTest is Test {
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
         milestoneConfigs[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 5 days });
 
-        escrow = new MilestoneEscrow(config, milestoneConfigs);
+        escrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
 
         token.mint(BUYER, 10_000e6);
         vm.prank(BUYER);
@@ -131,5 +134,15 @@ contract MilestoneEscrowFundingTest is Test {
         vm.prank(BUYER);
         vm.expectRevert(abi.encodeWithSelector(ActiveDisputeExists.selector));
         escrow.fundAllMilestones();
+    }
+
+    function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](0);
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
+        config = WidenedAuthorityConfig({
+            modelVersion: 0,
+            participants: participants,
+            delegations: delegations
+        });
     }
 }

@@ -2,7 +2,7 @@
   "name": "milestack-root-verification",
   "private": true,
   "scripts": {
-    "test": "npm --prefix web test --",
+    "test": "node -e \"const { spawnSync } = require('node:child_process'); const args = process.argv.slice(1); const target = args.length ? ['--prefix','backend','run','test','--', ...args] : ['--prefix','web','test','--']; const r = spawnSync('npm', target, { stdio: 'inherit' }); process.exit(r.status ?? 1);\"",
     "lint": "npm --prefix web run lint",
     "build": "npm --prefix backend run build && npm --prefix web run build",
     "test:rehearsal-recovery": "playwright test tests/rehearsal-recovery.spec.ts"

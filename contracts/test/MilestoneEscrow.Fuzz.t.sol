@@ -4,7 +4,15 @@ pragma solidity ^0.8.26;
 import { Test } from "forge-std/Test.sol";
 
 import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
-import { DealConfig, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
+import {
+    DealConfig,
+    DelegatedAuthority,
+    Milestone,
+    MilestoneConfig,
+    MilestoneStatus,
+    TopologyParticipant,
+    WidenedAuthorityConfig
+} from "src/MilestackTypes.sol";
 import { InvalidMilestoneState } from "src/MilestackErrors.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
@@ -452,7 +460,7 @@ contract MilestoneEscrowFuzzTest is Test {
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: amount, reviewWindowSeconds: reviewWindow });
 
-        escrow = new MilestoneEscrow(config, milestoneConfigs);
+        escrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
 
         token.mint(BUYER, amount);
         vm.prank(BUYER);
@@ -483,7 +491,7 @@ contract MilestoneEscrowFuzzTest is Test {
         milestoneConfigs[1] =
             MilestoneConfig({ amount: amount1, reviewWindowSeconds: reviewWindow });
 
-        escrow = new MilestoneEscrow(config, milestoneConfigs);
+        escrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
     }
 
     function _deployTwoMilestoneEscrowWithFunding(
@@ -505,5 +513,11 @@ contract MilestoneEscrowFuzzTest is Test {
             + escrow.totalRefundedToBuyer() + escrow.totalFeesCollected();
 
         assertEq(distributedAndHeld, escrow.totalFunded());
+    }
+
+    function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](0);
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
+        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
     }
 }

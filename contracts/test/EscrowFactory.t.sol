@@ -5,7 +5,15 @@ import { Test } from "forge-std/Test.sol";
 
 import { EscrowFactory } from "src/EscrowFactory.sol";
 import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
-import { DealStatus, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
+import {
+    DealStatus,
+    DelegatedAuthority,
+    Milestone,
+    MilestoneConfig,
+    MilestoneStatus,
+    TopologyParticipant,
+    WidenedAuthorityConfig
+} from "src/MilestackTypes.sol";
 import {
     ZeroAddress,
     InvalidPartyConfiguration,
@@ -164,5 +172,11 @@ contract EscrowFactoryTest is Test {
         milestones = new MilestoneConfig[](2);
         milestones[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
         milestones[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 5 days });
+    }
+
+    function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](0);
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
+        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
     }
 }

@@ -5,7 +5,16 @@ import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Test } from "forge-std/Test.sol";
 
 import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
-import { DealConfig, DealStatus, Milestone, MilestoneConfig, MilestoneStatus } from "src/MilestackTypes.sol";
+import {
+    DealConfig,
+    DealStatus,
+    DelegatedAuthority,
+    Milestone,
+    MilestoneConfig,
+    MilestoneStatus,
+    TopologyParticipant,
+    WidenedAuthorityConfig
+} from "src/MilestackTypes.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 
 contract MilestoneEscrowHandler is Test {
@@ -35,7 +44,7 @@ contract MilestoneEscrowHandler is Test {
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
         milestoneConfigs[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 3 days });
 
-        escrow = new MilestoneEscrow(config, milestoneConfigs);
+        escrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
 
         token.mint(BUYER, 10_000e6);
         vm.prank(BUYER);
@@ -132,6 +141,16 @@ contract MilestoneEscrowHandler is Test {
         if (currentIndex > maxObservedIndex) {
             maxObservedIndex = currentIndex;
         }
+    }
+
+    function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](0);
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
+        config = WidenedAuthorityConfig({
+            modelVersion: 0,
+            participants: participants,
+            delegations: delegations
+        });
     }
 }
 

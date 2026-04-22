@@ -4,14 +4,22 @@ pragma solidity ^0.8.26;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {
+    AUTHORITY_MODEL_MVP,
+    AUTHORITY_MODEL_WIDENED_V1,
+    AuthorityAction,
     DealConfig,
     DealStatus,
+    DelegatedAuthority,
     Milestone,
     MilestoneConfig,
-    MilestoneStatus
+    MilestoneStatus,
+    ParticipantRole,
+    TopologyParticipant,
+    WidenedAuthorityConfig
 } from "./MilestackTypes.sol";
 import {
     Unauthorized,
+    UnauthorizedDelegateOrTopology,
     InvalidMilestoneState,
     InvalidMilestoneIndex,
     InvalidMilestoneSequence,
@@ -22,7 +30,16 @@ import {
     InvalidResolutionSplit,
     DeadlineNotReached,
     DeadlinePassed,
-    NothingToCancel
+    NothingToCancel,
+    InvalidAuthorityModelVersion,
+    InvalidTopologyParticipant,
+    InvalidParticipantRole,
+    DuplicateTopologyParticipant,
+    InvalidDelegatedAuthority,
+    DuplicateDelegation,
+    SelfDelegation,
+    PrivilegeEscalation,
+    InvalidPartyConfiguration
 } from "./MilestackErrors.sol";
 import "./MilestackEvents.sol";
 
@@ -38,27 +55,28 @@ contract MilestoneEscrow {
     uint256 public totalRefundedToBuyer;
     uint256 public totalFeesCollected;
 
+    uint8 public authorityModelVersion;
+
+    mapping(address => ParticipantRole) public topologyRole;
+    mapping(address => bool) public topologyActive;
+    mapping(address => mapping(address => uint32)) public delegatedPermissions;
+
     Milestone[] internal milestones;
 
-    constructor(DealConfig memory config, MilestoneConfig[] memory milestoneConfigs) {
+    constructor(
+        DealConfig memory config,
+        MilestoneConfig[] memory milestoneConfigs,
+        WidenedAuthorityConfig memory widenedConfig
+    ) {
         dealConfig = config;
         dealStatus = DealStatus.Draft;
         activeDisputeMilestoneId = type(uint256).max;
+        authorityModelVersion = AUTHORITY_MODEL_MVP;
 
-        for (uint256 i = 0; i < milestoneConfigs.length; i++) {
-            milestones.push(
-                Milestone({
-                    amount: milestoneConfigs[i].amount,
-                    status: MilestoneStatus.PendingFunding,
-                    reviewWindowSeconds: milestoneConfigs[i].reviewWindowSeconds,
-                    submittedAt: 0,
-                    reviewDeadline: 0,
-                    evidenceHash: bytes32(0),
-                    disputeHash: bytes32(0),
-                    buyerAward: 0,
-                    sellerAward: 0
-                })
-            );
+        _initializeMilestones(milestoneConfigs);
+
+        if (widenedConfig.modelVersion != AUTHORITY_MODEL_MVP) {
+            _configureWidenedAuthority(widenedConfig);
         }
     }
 
@@ -100,7 +118,8 @@ contract MilestoneEscrow {
     }
 
     function fundMilestone(uint256 milestoneId) external {
-        if (msg.sender != dealConfig.buyer) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Fund, milestoneId);
+        address fundingSource = _payerForAction(msg.sender, AuthorityAction.Fund);
         if (activeDisputeMilestoneId != type(uint256).max) revert ActiveDisputeExists();
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
         if (milestoneId != currentMilestoneIndex) revert InvalidMilestoneSequence();
@@ -108,7 +127,7 @@ contract MilestoneEscrow {
         Milestone storage milestone = milestones[milestoneId];
         if (milestone.status != MilestoneStatus.PendingFunding) revert InvalidMilestoneState();
 
-        _safeTransferFrom(msg.sender, address(this), milestone.amount);
+        _safeTransferFrom(fundingSource, address(this), milestone.amount);
 
         milestone.status = MilestoneStatus.Funded;
         totalFunded += milestone.amount;
@@ -121,7 +140,8 @@ contract MilestoneEscrow {
     }
 
     function fundAllMilestones() external {
-        if (msg.sender != dealConfig.buyer) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Fund, currentMilestoneIndex);
+        address fundingSource = _payerForAction(msg.sender, AuthorityAction.Fund);
         if (activeDisputeMilestoneId != type(uint256).max) revert ActiveDisputeExists();
 
         uint256 milestoneCount_ = milestones.length;
@@ -136,7 +156,7 @@ contract MilestoneEscrow {
             totalToFund += milestones[i].amount;
         }
 
-        _safeTransferFrom(msg.sender, address(this), totalToFund);
+        _safeTransferFrom(fundingSource, address(this), totalToFund);
 
         for (uint256 i = currentMilestoneIndex; i < milestoneCount_; i++) {
             milestones[i].status = MilestoneStatus.Funded;
@@ -151,7 +171,7 @@ contract MilestoneEscrow {
     }
 
     function submitMilestone(uint256 milestoneId, bytes32 evidenceHash) external {
-        if (msg.sender != dealConfig.seller) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Submit, milestoneId);
         if (activeDisputeMilestoneId != type(uint256).max) revert ActiveDisputeExists();
         if (evidenceHash == bytes32(0)) revert InvalidEvidenceHash();
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
@@ -172,7 +192,7 @@ contract MilestoneEscrow {
     }
 
     function approveMilestone(uint256 milestoneId) external {
-        if (msg.sender != dealConfig.buyer) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Approve, milestoneId);
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
 
         Milestone storage milestone = milestones[milestoneId];
@@ -188,7 +208,7 @@ contract MilestoneEscrow {
     }
 
     function claimAfterReviewWindow(uint256 milestoneId) external {
-        if (msg.sender != dealConfig.seller) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Claim, milestoneId);
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
 
         Milestone storage milestone = milestones[milestoneId];
@@ -201,7 +221,7 @@ contract MilestoneEscrow {
     }
 
     function openDispute(uint256 milestoneId, bytes32 disputeHash) external {
-        if (msg.sender != dealConfig.buyer) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Dispute, milestoneId);
         if (activeDisputeMilestoneId != type(uint256).max) revert ActiveDisputeExists();
         if (disputeHash == bytes32(0)) revert InvalidDisputeHash();
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
@@ -221,7 +241,7 @@ contract MilestoneEscrow {
     function resolveDispute(uint256 milestoneId, uint256 buyerAmount, uint256 sellerAmount)
         external
     {
-        if (msg.sender != dealConfig.arbiter) revert Unauthorized();
+        _requireAction(msg.sender, AuthorityAction.Resolve, milestoneId);
         if (milestoneId >= milestones.length) revert InvalidMilestoneIndex();
         if (
             activeDisputeMilestoneId == type(uint256).max || activeDisputeMilestoneId != milestoneId
@@ -262,9 +282,7 @@ contract MilestoneEscrow {
     }
 
     function cancelUnfundedMilestones() external {
-        if (msg.sender != dealConfig.buyer && msg.sender != dealConfig.seller) {
-            revert Unauthorized();
-        }
+        _requireAction(msg.sender, AuthorityAction.Cancel, currentMilestoneIndex);
 
         uint256 cancelledCount;
         uint256 milestoneCount_ = milestones.length;
@@ -290,6 +308,220 @@ contract MilestoneEscrow {
 
         dealStatus = DealStatus.Cancelled;
         emit DealCancelled();
+    }
+
+    function _configureWidenedAuthority(WidenedAuthorityConfig memory widenedConfig) internal {
+        if (widenedConfig.modelVersion != AUTHORITY_MODEL_WIDENED_V1) {
+            revert InvalidAuthorityModelVersion();
+        }
+
+        TopologyParticipant[] memory participants = widenedConfig.participants;
+        DelegatedAuthority[] memory delegations = widenedConfig.delegations;
+
+        bool hasBuyer;
+        bool hasSeller;
+        bool hasArbiter;
+
+        for (uint256 i = 0; i < participants.length; i++) {
+            TopologyParticipant memory participant = participants[i];
+            if (participant.account == address(0)) revert InvalidTopologyParticipant();
+            if (participant.role == ParticipantRole.None) revert InvalidParticipantRole();
+
+            for (uint256 j = 0; j < i; j++) {
+                if (participants[j].account == participant.account) {
+                    revert DuplicateTopologyParticipant();
+                }
+            }
+
+            topologyRole[participant.account] = participant.role;
+            topologyActive[participant.account] = participant.active;
+
+            if (participant.account == dealConfig.buyer) {
+                if (participant.role != ParticipantRole.Buyer || !participant.active) {
+                    revert InvalidPartyConfiguration();
+                }
+                hasBuyer = true;
+            }
+            if (participant.account == dealConfig.seller) {
+                if (participant.role != ParticipantRole.Seller || !participant.active) {
+                    revert InvalidPartyConfiguration();
+                }
+                hasSeller = true;
+            }
+            if (participant.account == dealConfig.arbiter) {
+                if (participant.role != ParticipantRole.Arbiter || !participant.active) {
+                    revert InvalidPartyConfiguration();
+                }
+                hasArbiter = true;
+            }
+        }
+
+        if (!hasBuyer || !hasSeller || !hasArbiter) revert InvalidPartyConfiguration();
+
+        for (uint256 i = 0; i < delegations.length; i++) {
+            DelegatedAuthority memory delegation = delegations[i];
+
+            if (delegation.delegator == address(0) || delegation.delegate == address(0)) {
+                revert InvalidDelegatedAuthority();
+            }
+            if (delegation.delegator == delegation.delegate) revert SelfDelegation();
+            if (delegation.permissions == 0 || !delegation.active) revert InvalidDelegatedAuthority();
+
+            for (uint256 j = 0; j < i; j++) {
+                if (
+                    delegations[j].delegator == delegation.delegator
+                        && delegations[j].delegate == delegation.delegate
+                ) {
+                    revert DuplicateDelegation();
+                }
+            }
+
+            ParticipantRole delegatorRole = topologyRole[delegation.delegator];
+            if (delegatorRole == ParticipantRole.None) revert InvalidDelegatedAuthority();
+            if (!topologyActive[delegation.delegator] || !topologyActive[delegation.delegate]) {
+                revert InvalidDelegatedAuthority();
+            }
+
+            uint32 allowed = _allowedPermissionsForRole(delegatorRole);
+            if ((delegation.permissions & ~allowed) != 0) revert PrivilegeEscalation();
+
+            delegatedPermissions[delegation.delegator][delegation.delegate] = delegation.permissions;
+        }
+
+        authorityModelVersion = AUTHORITY_MODEL_WIDENED_V1;
+        emit WidenedAuthorityConfigured(
+            widenedConfig.modelVersion, participants.length, delegations.length
+        );
+    }
+
+    function _initializeMilestones(MilestoneConfig[] memory milestoneConfigs) internal {
+        for (uint256 i = 0; i < milestoneConfigs.length; i++) {
+            milestones.push(
+                Milestone({
+                    amount: milestoneConfigs[i].amount,
+                    status: MilestoneStatus.PendingFunding,
+                    reviewWindowSeconds: milestoneConfigs[i].reviewWindowSeconds,
+                    submittedAt: 0,
+                    reviewDeadline: 0,
+                    evidenceHash: bytes32(0),
+                    disputeHash: bytes32(0),
+                    buyerAward: 0,
+                    sellerAward: 0
+                })
+            );
+        }
+    }
+
+    function _requireAction(address actor, AuthorityAction action, uint256) internal view {
+        if (_isAuthorized(actor, action)) {
+            return;
+        }
+
+        if (authorityModelVersion == AUTHORITY_MODEL_MVP) revert Unauthorized();
+        revert UnauthorizedDelegateOrTopology();
+    }
+
+    function _payerForAction(address actor, AuthorityAction action) internal view returns (address) {
+        if (action == AuthorityAction.Fund) {
+            if (actor == dealConfig.buyer) {
+                return actor;
+            }
+
+            if (_isAuthorizedForRole(actor, dealConfig.buyer, ParticipantRole.Buyer, action)) {
+                return dealConfig.buyer;
+            }
+        }
+
+        return actor;
+    }
+
+    function _isAuthorized(address actor, AuthorityAction action) internal view returns (bool) {
+        if (action == AuthorityAction.Fund) {
+            return _isAuthorizedForRole(actor, dealConfig.buyer, ParticipantRole.Buyer, action);
+        }
+
+        if (action == AuthorityAction.Submit) {
+            return _isAuthorizedForRole(actor, dealConfig.seller, ParticipantRole.Seller, action);
+        }
+
+        if (action == AuthorityAction.Approve) {
+            return _isAuthorizedForRole(actor, dealConfig.buyer, ParticipantRole.Buyer, action);
+        }
+
+        if (action == AuthorityAction.Claim) {
+            return _isAuthorizedForRole(actor, dealConfig.seller, ParticipantRole.Seller, action);
+        }
+
+        if (action == AuthorityAction.Dispute) {
+            return _isAuthorizedForRole(actor, dealConfig.buyer, ParticipantRole.Buyer, action);
+        }
+
+        if (action == AuthorityAction.Resolve) {
+            return _isAuthorizedForRole(actor, dealConfig.arbiter, ParticipantRole.Arbiter, action);
+        }
+
+        if (action == AuthorityAction.Cancel) {
+            bool buyerAuthorized =
+                _isAuthorizedForRole(actor, dealConfig.buyer, ParticipantRole.Buyer, action);
+            if (buyerAuthorized) {
+                return true;
+            }
+
+            return _isAuthorizedForRole(actor, dealConfig.seller, ParticipantRole.Seller, action);
+        }
+
+        return false;
+    }
+
+    function _isAuthorizedForRole(
+        address actor,
+        address principal,
+        ParticipantRole requiredRole,
+        AuthorityAction action
+    ) internal view returns (bool) {
+        if (actor == principal) {
+            return true;
+        }
+
+        if (authorityModelVersion != AUTHORITY_MODEL_WIDENED_V1) {
+            return false;
+        }
+
+        if (!topologyActive[principal] || !topologyActive[actor]) {
+            return false;
+        }
+
+        if (topologyRole[principal] != requiredRole) {
+            return false;
+        }
+
+        uint32 permissionMask = delegatedPermissions[principal][actor];
+        if (permissionMask == 0) {
+            return false;
+        }
+
+        return (permissionMask & uint32(1 << uint8(action))) != 0;
+    }
+
+    function _allowedPermissionsForRole(ParticipantRole role) internal pure returns (uint32) {
+        if (role == ParticipantRole.Buyer) {
+            return uint32(1 << uint8(AuthorityAction.Fund))
+                | uint32(1 << uint8(AuthorityAction.Approve))
+                | uint32(1 << uint8(AuthorityAction.Dispute))
+                | uint32(1 << uint8(AuthorityAction.Cancel));
+        }
+
+        if (role == ParticipantRole.Seller) {
+            return uint32(1 << uint8(AuthorityAction.Submit))
+                | uint32(1 << uint8(AuthorityAction.Claim))
+                | uint32(1 << uint8(AuthorityAction.Cancel));
+        }
+
+        if (role == ParticipantRole.Arbiter) {
+            return uint32(1 << uint8(AuthorityAction.Resolve));
+        }
+
+        return 0;
     }
 
     function _payoutMilestone(uint256 milestoneId, Milestone storage milestone) internal {

@@ -11,6 +11,21 @@ event EscrowCreated(
     bytes32 metadataHash
 );
 
+event EscrowCreatedWidened(
+    address indexed escrow,
+    uint8 indexed authorityModelVersion,
+    uint256 participantCount,
+    uint256 delegationCount
+);
+
+event WidenedAuthorityConfigured(
+    uint8 indexed authorityModelVersion, uint256 participantCount, uint256 delegationCount
+);
+
+event UnauthorizedAuthorityAttempt(
+    address indexed actor, uint8 indexed action, uint256 indexed milestoneId
+);
+
 event MilestoneFunded(uint256 indexed milestoneId, uint256 amount);
 event MilestoneSubmitted(
     uint256 indexed milestoneId, bytes32 evidenceHash, uint64 submittedAt, uint64 reviewDeadline

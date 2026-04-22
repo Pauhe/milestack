@@ -8,9 +8,18 @@ error InvalidMilestoneAmount();
 error InvalidReviewWindow();
 error InvalidFeeBps();
 error InvalidMetadataHash();
+error InvalidAuthorityModelVersion();
+error InvalidTopologyParticipant();
+error InvalidParticipantRole();
+error DuplicateTopologyParticipant();
+error InvalidDelegatedAuthority();
+error DuplicateDelegation();
+error SelfDelegation();
+error PrivilegeEscalation();
 error CreationPaused();
 
 error Unauthorized();
+error UnauthorizedDelegateOrTopology();
 error InvalidDealState();
 error InvalidMilestoneState();
 error InvalidMilestoneIndex();

@@ -9,9 +9,12 @@ import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
 import {
     DealConfig,
     DealStatus,
+    DelegatedAuthority,
     Milestone,
     MilestoneConfig,
-    MilestoneStatus
+    MilestoneStatus,
+    TopologyParticipant,
+    WidenedAuthorityConfig
 } from "src/MilestackTypes.sol";
 import {
     Unauthorized,
@@ -71,7 +74,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
         milestoneConfigs[1] = MilestoneConfig({ amount: 2_000e6, reviewWindowSeconds: 3 days });
 
-        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs);
+        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
     }
 
     function _deploySingleMilestoneEscrow() internal returns (MilestoneEscrow deployedEscrow) {
@@ -88,7 +91,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
-        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs);
+        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
     }
 
     function _deployZeroFeeEscrow() internal returns (MilestoneEscrow deployedEscrow) {
@@ -105,7 +108,7 @@ contract MilestoneEscrowSubmissionTest is Test {
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
-        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs);
+        deployedEscrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
     }
 
     function testSellerCanSubmitFundedCurrentMilestone() public {
@@ -328,7 +331,8 @@ contract MilestoneEscrowSubmissionTest is Test {
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
-        MilestoneEscrow failingEscrow = new MilestoneEscrow(config, milestoneConfigs);
+        MilestoneEscrow failingEscrow =
+            new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
 
         failingToken.mint(BUYER, 1_000e6);
         vm.prank(BUYER);
@@ -497,7 +501,8 @@ contract MilestoneEscrowSubmissionTest is Test {
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
-        MilestoneEscrow failingEscrow = new MilestoneEscrow(config, milestoneConfigs);
+        MilestoneEscrow failingEscrow =
+            new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
 
         failingToken.mint(BUYER, 1_000e6);
         vm.prank(BUYER);
@@ -837,7 +842,8 @@ contract MilestoneEscrowSubmissionTest is Test {
         MilestoneConfig[] memory milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
-        MilestoneEscrow failingEscrow = new MilestoneEscrow(config, milestoneConfigs);
+        MilestoneEscrow failingEscrow =
+            new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
 
         failingToken.mint(BUYER, 1_000e6);
         vm.prank(BUYER);
@@ -991,5 +997,11 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.prank(BUYER);
         vm.expectRevert(abi.encodeWithSelector(NothingToCancel.selector));
         singleMilestoneEscrow.cancelUnfundedMilestones();
+    }
+
+    function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](0);
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
+        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
     }
 }
