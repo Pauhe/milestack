@@ -7,11 +7,15 @@ import { EscrowFactory } from "src/EscrowFactory.sol";
 
 contract DeployEscrowFactory is Script {
     function run() external returns (EscrowFactory deployedFactory) {
+        uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address usdc = vm.envAddress("USDC_ADDRESS");
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
-        uint16 protocolFeeBps = uint16(vm.envUint("PROTOCOL_FEE_BPS"));
 
-        vm.startBroadcast();
+        uint256 rawProtocolFeeBps = vm.envUint("PROTOCOL_FEE_BPS");
+        require(rawProtocolFeeBps <= type(uint16).max, "PROTOCOL_FEE_BPS_OVERFLOW");
+        uint16 protocolFeeBps = uint16(rawProtocolFeeBps);
+
+        vm.startBroadcast(deployerPrivateKey);
         deployedFactory = new EscrowFactory(usdc, feeRecipient, protocolFeeBps);
         vm.stopBroadcast();
     }
