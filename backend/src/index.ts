@@ -480,6 +480,8 @@ export function createApp() {
         truth: {
           canonicalSource: "derived_from_events",
           ambiguityPolicy: "claim_attribution_ambiguous_without_adjacent_same_milestone_approval",
+          disputeOutcomePolicy:
+            "count_only_recorded_disputes_with_replayable_resolution_signals; unresolved_or_ambiguous_outcomes_never_counted_as_wins",
         },
         freshness: buildFreshness(),
       });

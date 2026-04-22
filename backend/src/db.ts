@@ -73,6 +73,10 @@ db.exec(`
     completed_milestones_count INTEGER NOT NULL,
     dispute_count INTEGER NOT NULL,
     dispute_wins_count INTEGER NOT NULL,
+    dispute_losses_count INTEGER NOT NULL DEFAULT 0,
+    resolved_dispute_count INTEGER NOT NULL DEFAULT 0,
+    unresolved_dispute_count INTEGER NOT NULL DEFAULT 0,
+    dispute_split_count INTEGER NOT NULL DEFAULT 0,
     cancellation_count INTEGER NOT NULL,
     total_volume TEXT NOT NULL,
     updated_at_block TEXT NOT NULL,
@@ -88,6 +92,25 @@ db.exec(`
     updated_at_block TEXT NOT NULL
   );
 `);
+
+const userRoleStatsColumns = db.prepare("PRAGMA table_info(user_role_stats)").all() as Array<{ name: string }>;
+const hasUserRoleStatsColumn = (columnName: string) => userRoleStatsColumns.some((item) => item.name === columnName);
+
+if (!hasUserRoleStatsColumn("dispute_losses_count")) {
+  db.exec("ALTER TABLE user_role_stats ADD COLUMN dispute_losses_count INTEGER NOT NULL DEFAULT 0;");
+}
+
+if (!hasUserRoleStatsColumn("resolved_dispute_count")) {
+  db.exec("ALTER TABLE user_role_stats ADD COLUMN resolved_dispute_count INTEGER NOT NULL DEFAULT 0;");
+}
+
+if (!hasUserRoleStatsColumn("unresolved_dispute_count")) {
+  db.exec("ALTER TABLE user_role_stats ADD COLUMN unresolved_dispute_count INTEGER NOT NULL DEFAULT 0;");
+}
+
+if (!hasUserRoleStatsColumn("dispute_split_count")) {
+  db.exec("ALTER TABLE user_role_stats ADD COLUMN dispute_split_count INTEGER NOT NULL DEFAULT 0;");
+}
 
 export type SyncPhase =
   | "idle"

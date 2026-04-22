@@ -312,6 +312,10 @@ export function upsertUserRoleStats(input: {
   completedMilestonesCount: number;
   disputeCount: number;
   disputeWinsCount: number;
+  disputeLossesCount: number;
+  resolvedDisputeCount: number;
+  unresolvedDisputeCount: number;
+  disputeSplitCount: number;
   cancellationCount: number;
   totalVolume: string;
   updatedAtBlock: string;
@@ -325,15 +329,23 @@ export function upsertUserRoleStats(input: {
         completed_milestones_count,
         dispute_count,
         dispute_wins_count,
+        dispute_losses_count,
+        resolved_dispute_count,
+        unresolved_dispute_count,
+        dispute_split_count,
         cancellation_count,
         total_volume,
         updated_at_block
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(address, role) DO UPDATE SET
         completed_deals_count = excluded.completed_deals_count,
         completed_milestones_count = excluded.completed_milestones_count,
         dispute_count = excluded.dispute_count,
         dispute_wins_count = excluded.dispute_wins_count,
+        dispute_losses_count = excluded.dispute_losses_count,
+        resolved_dispute_count = excluded.resolved_dispute_count,
+        unresolved_dispute_count = excluded.unresolved_dispute_count,
+        dispute_split_count = excluded.dispute_split_count,
         cancellation_count = excluded.cancellation_count,
         total_volume = excluded.total_volume,
         updated_at_block = excluded.updated_at_block
@@ -345,6 +357,10 @@ export function upsertUserRoleStats(input: {
     input.completedMilestonesCount,
     input.disputeCount,
     input.disputeWinsCount,
+    input.disputeLossesCount,
+    input.resolvedDisputeCount,
+    input.unresolvedDisputeCount,
+    input.disputeSplitCount,
     input.cancellationCount,
     input.totalVolume,
     input.updatedAtBlock
@@ -366,6 +382,10 @@ export function getUserRoleStats(address: string) {
       completed_milestones_count: number;
       dispute_count: number;
       dispute_wins_count: number;
+      dispute_losses_count: number;
+      resolved_dispute_count: number;
+      unresolved_dispute_count: number;
+      dispute_split_count: number;
       cancellation_count: number;
       total_volume: string;
       updated_at_block: string;
