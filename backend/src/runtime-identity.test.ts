@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { assertRuntimeChainSupported, getConfiguredChain } from "./chains.js";
+import { deploymentManifest, validatedDeploymentManifests } from "./config.js";
 import { db } from "./db.js";
 import {
   clearDerivedReadModels,
@@ -202,4 +203,31 @@ test("legacy sync checkpoint helpers round-trip from runtime tests", async () =>
 
   dbModule.setLastSyncedBlock(124n);
   assert.equal(dbModule.getSyncHealthState().lastSuccessfulBlock, 124n);
+});
+
+test("manifest and runtime chain support sets remain aligned", () => {
+  const runtimeSupported = [31337, 8453, 84532].sort((a, b) => a - b);
+  const manifestSupported = [...new Set(Object.values(validatedDeploymentManifests).map((manifest) => manifest.chain.chainId))].sort(
+    (a, b) => a - b
+  );
+
+  assert.deepEqual(manifestSupported, runtimeSupported.filter((chainId) => manifestSupported.includes(chainId)));
+  assert.equal(manifestSupported.includes(deploymentManifest.chain.chainId), true);
+});
+
+test("chains module import fails closed when manifest contains unsupported chain id", async () => {
+  const configModule = await import(`./config.js?runtime-identity-config-${Date.now()}`);
+
+  const originalLocalChainId = configModule.validatedDeploymentManifests.local.chain.chainId;
+
+  try {
+    configModule.validatedDeploymentManifests.local.chain.chainId = 999999;
+
+    await assert.rejects(
+      () => import(`./chains.js?unsupported-manifest-${Date.now()}`),
+      /Unsupported manifest chain ids 999999/
+    );
+  } finally {
+    configModule.validatedDeploymentManifests.local.chain.chainId = originalLocalChainId;
+  }
 });

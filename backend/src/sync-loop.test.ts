@@ -78,6 +78,33 @@ test("runSyncOnce captures sanitized failure errors and always resets active syn
   }
 });
 
+test("runSyncOnce sanitizes thrown non-Error values and still resets loop state", async () => {
+  const module = await import(`./sync-loop.js?sync-loop-non-error-${Date.now()}`);
+
+  setIndexerPublicClient({
+    chain: { id: 31337 },
+    getBlockNumber: async () => {
+      throw "rpc malformed payload\nwith\ttabs";
+    },
+    getLogs: async () => [],
+  });
+
+  try {
+    await assert.rejects(() => module.runSyncOnce());
+
+    assert.equal(module.syncLoopState.isSyncing, false);
+    assert.equal(module.syncLoopState.activeSyncStartedAt, null);
+    assert.equal(module.syncLoopState.lastSyncAt, null);
+    assert.ok(module.syncLoopState.lastSyncError);
+    assert.equal(module.syncLoopState.lastSyncError?.includes("\n"), false);
+    assert.equal(module.syncLoopState.lastSyncError?.includes("\t"), false);
+    assert.match(module.syncLoopState.lastSyncError ?? "", /rpc malformed payload with tabs/);
+    assert.equal(module.syncLoopState.lastSyncError?.length, "rpc malformed payload with tabs".length);
+  } finally {
+    resetIndexerPublicClient();
+  }
+});
+
 test("startSyncLoop returns an interval handle that can be cleared", async () => {
   const module = await import(`./sync-loop.js?sync-loop-start-${Date.now()}`);
   const timer = module.startSyncLoop();
