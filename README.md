@@ -63,6 +63,25 @@ For first-launch scope decisions, treat the canonical boundary and recovery prog
 
 If any broad doc conflicts with those artifacts, those artifacts win until explicitly superseded.
 
+## Operability Truth Surface (Rehearsal-Local Only)
+
+Current executable launch/no-launch evidence in-repo is rehearsal-local.
+Use these exact gates and artifacts when asserting launch readiness in docs or runbooks:
+
+- `bash scripts/verify-s02-recovery.sh`
+- `bash scripts/verify-s03-operability.sh`
+- `deployments/rehearsal-local/rehearsal-recovery-verification.json`
+- `deployments/rehearsal-local/operability-verification.json`
+- `/health.sync.freshness`
+- `/health.sync.degraded`
+- `/health.sync.status`
+- `/health.sync.phase`
+- `/health.sync.lagBlocks`
+- `/health.sync.lastError`
+
+If canary abort conditions are met, treat the verdict as no-launch.
+Rollback is offchain-only rollback (backend/web/indexer and config), not contract-state rollback.
+
 ## Repository Layout
 
 - `PRODUCT_SPEC.md`: product and market spec

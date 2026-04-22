@@ -1,8 +1,8 @@
 {
   "version": 1,
   "environment": "rehearsal-local",
-  "generatedAt": "2026-04-22T00:13:44.004Z",
-  "baseTimestamp": "2026-04-22T00:13:44.004Z",
+  "generatedAt": "2026-04-22T00:17:18.721Z",
+  "baseTimestamp": "2026-04-22T00:17:18.721Z",
   "defaults": {
     "reviewWindowSeconds": 300,
     "metadataVisibility": "public"
@@ -11,12 +11,12 @@
     "buyer": "0x70997970c51812dc3a010c7d01b50e0d17dc79c8",
     "seller": "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
     "arbiter": "0x90f79bf6eb2c4f870365e785982e1f101e93b906",
-    "token": "0xce0066b1008237625dddbe4a751827de037e53d2",
+    "token": "0x9385556b571ab92bf6dc9a0dbd75429dd4d56f91",
     "feeRecipient": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
   },
   "journeys": {
     "happyPath": {
-      "escrowAddress": "0xcafCfdF4517F504a473469F3723e674413EE9bce",
+      "escrowAddress": "0xa5F4145D7d031c96c0140596f0020Fe4666D8170",
       "dealId": "rehearsal-happy-001",
       "milestoneId": 0,
       "events": [
@@ -28,7 +28,7 @@
       ]
     },
     "timeoutPath": {
-      "escrowAddress": "0xd1f8C3b3C9C63a7a7f0dCFd20ae9053A04182db1",
+      "escrowAddress": "0x816dA8Baf61f31EA8AaFC64dEaa5Aba1dBBF959A",
       "dealId": "rehearsal-timeout-001",
       "milestoneId": 0,
       "events": [
@@ -39,7 +39,7 @@
       ]
     },
     "disputePath": {
-      "escrowAddress": "0x738AA5a01c7Df7E2Bc12722252989B5d019Fe24B",
+      "escrowAddress": "0xb8Fa0c3FFA6Cd36c1074187b19C6F98C5120F62a",
       "dealId": "rehearsal-dispute-001",
       "milestoneId": 0,
       "events": [

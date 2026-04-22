@@ -211,6 +211,15 @@ Because Milestack will eventually hold real money, the plan intentionally treats
 - no indexing drift or alert blind spots are discovered
 - incident and rollback procedures have been exercised at least once for offchain systems
 
+### Evidence boundary (fail-closed)
+
+Mainnet/production canary work in this phase is planning guidance, not executable proof in this repository.
+Current executable launch/no-launch evidence in-repo is rehearsal-local and must come from:
+- `bash scripts/verify-s02-recovery.sh`
+- `bash scripts/verify-s03-operability.sh`
+- `deployments/rehearsal-local/rehearsal-recovery-verification.json`
+- `deployments/rehearsal-local/operability-verification.json`
+
 ## 12. Phase 9: Production Readiness Review
 
 ### Required gates

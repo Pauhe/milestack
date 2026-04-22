@@ -701,7 +701,24 @@ These questions are no longer open for MVP:
 - the default review window is 5 days
 - deal visibility is public-by-default
 
-## 23. Canonical Launch-vs-Post-Launch Roadmap
+## 23. Operability Evidence Boundary (First-Reader Contract)
+
+For launch/no-launch operability claims in this repository, treat rehearsal-local gates and artifacts as the executable source of truth:
+- `bash scripts/verify-s02-recovery.sh`
+- `bash scripts/verify-s03-operability.sh`
+- `deployments/rehearsal-local/rehearsal-recovery-verification.json`
+- `deployments/rehearsal-local/operability-verification.json`
+- `/health.sync.freshness`
+- `/health.sync.degraded`
+- `/health.sync.status`
+- `/health.sync.phase`
+- `/health.sync.lagBlocks`
+- `/health.sync.lastError`
+
+Canary abort wording must remain fail-closed: if thresholds are breached, verdict is no-launch.
+Rollback wording must remain precise: rollback is offchain-only (backend/web/indexer/config), not contract-state rollback.
+
+## 24. Canonical Launch-vs-Post-Launch Roadmap
 
 This section is intentionally aligned to the canonical recovery artifacts:
 - `.gsd/milestones/M001/slices/S02/canonical-launch-boundary.md`

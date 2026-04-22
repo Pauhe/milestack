@@ -18,8 +18,8 @@
     "maxStaleHealthSnapshots": 3,
     "maxMissingBrowserEvidence": 0
   },
-  "runStartedAt": "2026-04-22T00:13:39Z",
-  "runCompletedAt": "2026-04-22T00:14:06Z",
+  "runStartedAt": "2026-04-22T00:17:10Z",
+  "runCompletedAt": "2026-04-22T00:17:40Z",
   "failurePhase": null,
   "failureReason": null,
   "phases": [
@@ -27,36 +27,36 @@
       "phase": "baseline-rehearsal",
       "status": "complete",
       "detail": "s01 rehearsal verifier passed",
-      "startedAt": "2026-04-22T00:13:39Z",
-      "endedAt": "2026-04-22T00:13:57Z"
+      "startedAt": "2026-04-22T00:17:10Z",
+      "endedAt": "2026-04-22T00:17:32Z"
     },
     {
       "phase": "recovery-proof",
       "status": "complete",
       "detail": "s02 recovery verifier passed",
-      "startedAt": "2026-04-22T00:13:57Z",
-      "endedAt": "2026-04-22T00:14:05Z"
+      "startedAt": "2026-04-22T00:17:32Z",
+      "endedAt": "2026-04-22T00:17:40Z"
     },
     {
       "phase": "artifact-contract-check",
       "status": "complete",
       "detail": "artifacts + browser evidence validated",
-      "startedAt": "2026-04-22T00:14:05Z",
-      "endedAt": "2026-04-22T00:14:05Z"
+      "startedAt": "2026-04-22T00:17:40Z",
+      "endedAt": "2026-04-22T00:17:40Z"
     },
     {
       "phase": "abort-threshold-check",
       "status": "complete",
       "detail": "abort thresholds satisfied",
-      "startedAt": "2026-04-22T00:14:05Z",
-      "endedAt": "2026-04-22T00:14:05Z"
+      "startedAt": "2026-04-22T00:17:40Z",
+      "endedAt": "2026-04-22T00:17:40Z"
     },
     {
       "phase": "final-verdict",
       "status": "complete",
       "detail": "launch-operability verdict: PASS",
-      "startedAt": "2026-04-22T00:14:06Z",
-      "endedAt": "2026-04-22T00:14:06Z"
+      "startedAt": "2026-04-22T00:17:40Z",
+      "endedAt": "2026-04-22T00:17:40Z"
     }
   ]
 }

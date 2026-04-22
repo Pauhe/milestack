@@ -4,39 +4,39 @@
   "mode": "execute",
   "rpcUrl": "http://127.0.0.1:8545",
   "backendUrl": "http://127.0.0.1:4100",
-  "startedAt": "2026-04-22T00:14:01.919Z",
-  "completedAt": "2026-04-22T00:14:02.191Z",
+  "startedAt": "2026-04-22T00:17:36.423Z",
+  "completedAt": "2026-04-22T00:17:36.667Z",
   "phases": [
     {
       "phase": "execute",
       "status": "running",
       "details": "backend=http://127.0.0.1:4100",
-      "at": "2026-04-22T00:14:01.919Z"
+      "at": "2026-04-22T00:17:36.423Z"
     },
     {
       "phase": "execute",
       "status": "complete",
       "details": "all journeys verified through backend truth surfaces",
-      "at": "2026-04-22T00:14:02.191Z"
+      "at": "2026-04-22T00:17:36.667Z"
     }
   ],
   "bootstrap": null,
   "execute": {
     "happyPath": {
-      "escrowAddress": "0xcafCfdF4517F504a473469F3723e674413EE9bce",
-      "submitTxHash": "0x82b5f81b6ba70e1b282cc737cf3e97d45a7e33197ab27031be41209f776c3daa",
-      "approveTxHash": "0x68cc4ff5765d7714a48e2adf3856d3a667392952d0f64950dc3028717433d4b9"
+      "escrowAddress": "0xa5F4145D7d031c96c0140596f0020Fe4666D8170",
+      "submitTxHash": "0x1c273faea2dd7eaabf87b25729b427df0e31236d39f2580db475c2f8ae749bb0",
+      "approveTxHash": "0x17d7efd9207b1e5e887aed0e2b44947b2b1c7c987de0081a2d6f524c3d5a0759"
     },
     "timeoutPath": {
-      "escrowAddress": "0xd1f8C3b3C9C63a7a7f0dCFd20ae9053A04182db1",
-      "submitTxHash": "0xd8116172daa5096c4a11db79310277113be2fc85a9365d07c3a251685d2e6199",
-      "claimTxHash": "0x72ee3bcc44e6de1f4562b6c99e94680d42dad5531c4c8dc43a14662cf744f910"
+      "escrowAddress": "0x816dA8Baf61f31EA8AaFC64dEaa5Aba1dBBF959A",
+      "submitTxHash": "0x185a8051f20203c3b5b2f5cd4b4522da8b3e368d66d646816465e43d1bd5c75f",
+      "claimTxHash": "0xc3087dea7da1250170c746ce64966dfe5c90614cef39a76d48dbac831e007210"
     },
     "disputePath": {
-      "escrowAddress": "0x738AA5a01c7Df7E2Bc12722252989B5d019Fe24B",
-      "submitTxHash": "0xd066f08ee37b4d6de2bc316f6fd589e196ab767efc3bcbc715e43e80b3e0de08",
-      "openDisputeTxHash": "0x0b30bbf5d7ab29f283017a1bf5d0d5fa3544f524cd54067b559cd51505a482b3",
-      "resolveDisputeTxHash": "0x9680be788354d7dd841efc041577f61dce9ba22d93d78f0ea9377dd3394c5fcc",
+      "escrowAddress": "0xb8Fa0c3FFA6Cd36c1074187b19C6F98C5120F62a",
+      "submitTxHash": "0x1787de220592f1ef35fe82cb261473832688c4dec6a0fd8e200b6276e6b9224b",
+      "openDisputeTxHash": "0xd7c281d2264decf364651d3d6a3d095bfdb682ec0a5671849ebb1046eae73cd6",
+      "resolveDisputeTxHash": "0xa8af7b73964898eaa23422e6fbd2a2fce46c97fbb6193a4f3edc8577f2278aea",
       "buyerAward": "400000",
       "sellerAward": "600000"
     }
