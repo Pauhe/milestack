@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { deploymentManifest } from "./config.js";
 import { db } from "./db.js";
 import { recomputeUserRoleStats } from "./reputation.js";
 import { getUserRoleStats } from "./repository.js";
@@ -20,6 +21,7 @@ function resetReadModels() {
 }
 
 function insertEscrow(input: {
+  chainId?: number;
   address: string;
   buyer: string;
   seller: string;
@@ -33,6 +35,7 @@ function insertEscrow(input: {
   db.prepare(
     `
       INSERT INTO escrows (
+        chain_id,
         address,
         buyer_address,
         seller_address,
@@ -49,9 +52,10 @@ function insertEscrow(input: {
         total_fees_collected,
         created_at_block,
         updated_at_block
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   ).run(
+    input.chainId ?? deploymentManifest.chain.chainId,
     input.address,
     input.buyer,
     input.seller,
@@ -72,6 +76,7 @@ function insertEscrow(input: {
 }
 
 function insertMilestone(input: {
+  chainId?: number;
   escrowAddress: string;
   milestoneId: number;
   amount: string;
@@ -83,6 +88,7 @@ function insertMilestone(input: {
   db.prepare(
     `
       INSERT INTO milestones (
+        chain_id,
         escrow_address,
         milestone_id,
         amount,
@@ -96,9 +102,10 @@ function insertMilestone(input: {
         seller_award,
         metadata_title,
         metadata_description
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
   ).run(
+    input.chainId ?? deploymentManifest.chain.chainId,
     input.escrowAddress,
     input.milestoneId,
     input.amount,

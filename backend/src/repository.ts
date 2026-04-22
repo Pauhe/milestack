@@ -527,13 +527,105 @@ export function listEscrowsByChain(chainId: number) {
     .all(chainId) as EscrowRow[];
 }
 
+function queryRowsForEscrowAddresses(chainId: number, escrowAddresses: string[]) {
+  if (escrowAddresses.length === 0) {
+    return [];
+  }
+
+  const placeholders = escrowAddresses.map(() => "?").join(", ");
+  return db
+    .prepare(
+      `
+        SELECT * FROM milestones
+        WHERE chain_id = ? AND escrow_address IN (${placeholders})
+      `
+    )
+    .all(chainId, ...escrowAddresses) as MilestoneRow[];
+}
+
+function queryRowsForMetadataHashes(metadataHashes: string[]) {
+  if (metadataHashes.length === 0) {
+    return [];
+  }
+
+  const placeholders = metadataHashes.map(() => "?").join(", ");
+  return db
+    .prepare(
+      `
+        SELECT * FROM metadata_cache
+        WHERE metadata_hash IN (${placeholders})
+      `
+    )
+    .all(...metadataHashes) as MetadataCacheRow[];
+}
+
+function queryRowsForParticipantAddresses(addresses: string[]) {
+  if (addresses.length === 0) {
+    return [];
+  }
+
+  const placeholders = addresses.map(() => "?").join(", ");
+  return db
+    .prepare(
+      `
+        SELECT * FROM user_role_stats
+        WHERE address IN (${placeholders})
+      `
+    )
+    .all(...addresses) as UserRoleStatsRow[];
+}
+
 export function listDiscoveryAggregates(chainId: number): DiscoveryAggregateRow[] {
   const escrows = listEscrowsByChain(chainId);
+  if (escrows.length === 0) {
+    return [];
+  }
+
+  const escrowAddresses = escrows.map((escrow) => escrow.address);
+  const metadataHashes = Array.from(new Set(escrows.map((escrow) => escrow.metadata_hash)));
+  const participantAddresses = Array.from(
+    new Set(
+      escrows.flatMap((escrow) => [escrow.buyer_address.toLowerCase(), escrow.seller_address.toLowerCase(), escrow.arbiter_address.toLowerCase()])
+    )
+  );
+
+  const milestoneRows = queryRowsForEscrowAddresses(chainId, escrowAddresses);
+  const metadataRows = queryRowsForMetadataHashes(metadataHashes);
+  const participantRoleStatsRows = queryRowsForParticipantAddresses(participantAddresses);
+
+  const milestonesByEscrowAddress = new Map<string, MilestoneRow[]>();
+  for (const milestone of milestoneRows) {
+    const key = milestone.escrow_address.toLowerCase();
+    const current = milestonesByEscrowAddress.get(key);
+    if (current) {
+      current.push(milestone);
+      continue;
+    }
+
+    milestonesByEscrowAddress.set(key, [milestone]);
+  }
+
+  const metadataByHash = new Map<string, MetadataCacheRow>();
+  for (const row of metadataRows) {
+    metadataByHash.set(row.metadata_hash, row);
+  }
+
+  const roleStatsByAddress = new Map<string, UserRoleStatsRow[]>();
+  for (const row of participantRoleStatsRows) {
+    const key = row.address.toLowerCase();
+    const current = roleStatsByAddress.get(key);
+    if (current) {
+      current.push(row);
+      continue;
+    }
+
+    roleStatsByAddress.set(key, [row]);
+  }
 
   return escrows.map((escrow) => {
-    const milestoneRows = listMilestones(escrow.chain_id, escrow.address);
-    const currentMilestone = milestoneRows.find((milestone) => milestone.milestone_id === escrow.current_milestone_index) ?? null;
-    const metadataCache = getMetadataCache(escrow.metadata_hash) ?? null;
+    const escrowAddress = escrow.address.toLowerCase();
+    const milestoneGroup = milestonesByEscrowAddress.get(escrowAddress) ?? [];
+    const currentMilestone = milestoneGroup.find((milestone) => milestone.milestone_id === escrow.current_milestone_index) ?? null;
 
     return {
       identity: {
@@ -543,16 +635,16 @@ export function listDiscoveryAggregates(chainId: number): DiscoveryAggregateRow[
       },
       escrow,
       milestones: {
-        totalCount: milestoneRows.length,
-        submittedCount: milestoneRows.filter((milestone) => milestone.status === 2).length,
-        terminalCount: milestoneRows.filter((milestone) => milestone.status === 7 || milestone.status === 8).length,
+        totalCount: milestoneGroup.length,
+        submittedCount: milestoneGroup.filter((milestone) => milestone.status === 2).length,
+        terminalCount: milestoneGroup.filter((milestone) => milestone.status === 7 || milestone.status === 8).length,
       },
       currentMilestone,
-      metadataCache,
+      metadataCache: metadataByHash.get(escrow.metadata_hash) ?? null,
       roleStats: {
-        buyer: getUserRoleStats(escrow.buyer_address),
-        seller: getUserRoleStats(escrow.seller_address),
-        arbiter: getUserRoleStats(escrow.arbiter_address),
+        buyer: roleStatsByAddress.get(escrow.buyer_address.toLowerCase()) ?? [],
+        seller: roleStatsByAddress.get(escrow.seller_address.toLowerCase()) ?? [],
+        arbiter: roleStatsByAddress.get(escrow.arbiter_address.toLowerCase()) ?? [],
       },
     };
   });

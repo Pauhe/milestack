@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { deploymentManifest } from "./config.js";
 import { db, patchSyncHealthState } from "./db.js";
-import { createApp } from "./index.js";
+import { createApp, discoveryReaders } from "./index.js";
 import { upsertEscrow, upsertMetadataCache, upsertMilestone, upsertUserRoleStats } from "./repository.js";
 import { syncLoopState } from "./sync-loop.js";
 
@@ -405,4 +405,42 @@ test("GET /discover preserves chain-aware identity key when address bytes match 
   assert.equal(identity.address, ESCROW_A.toLowerCase());
   assert.equal(identity.chainId, deploymentManifest.chain.chainId);
   assert.equal(identity.key, `${deploymentManifest.chain.chainId}:${ESCROW_A.toLowerCase()}`);
+});
+
+test("GET /discover returns degraded empty payload instead of crashing on malformed aggregate rows", async (t) => {
+  resetDb();
+  resetLoopState();
+
+  patchSyncHealthState({
+    lastAttemptedBlock: 60n,
+    lastAttemptedAt: "2026-02-01T00:02:00.000Z",
+    lastSuccessfulBlock: 60n,
+    lastSuccessfulAt: "2026-02-01T00:02:00.000Z",
+    chainHeadSeen: 60n,
+    lagBlocks: 0n,
+    phase: "idle",
+    status: "healthy",
+    lastError: null,
+  });
+
+  t.mock.method(discoveryReaders, "listDiscoveryAggregates", () => {
+    throw new Error("malformed aggregate state");
+  });
+
+  const { status, body } = await jsonRequest("/discover");
+
+  assert.equal(status, 200);
+
+  const items = body.items as Array<Record<string, unknown>>;
+  assert.equal(items.length, 0);
+
+  const freshness = body.freshness as Record<string, unknown>;
+  assert.equal(freshness.state, "unavailable");
+  assert.equal(freshness.degraded, true);
+  assert.match(String(freshness.lastError), /discover aggregation degraded/);
+
+  const truth = body.truth as Record<string, unknown>;
+  const freshnessSummary = truth.freshnessSummary as Record<string, unknown>;
+  assert.equal(freshnessSummary.state, "degraded");
+  assert.equal(freshnessSummary.degraded, true);
 });
