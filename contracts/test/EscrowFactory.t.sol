@@ -313,9 +313,13 @@ contract EscrowFactoryTest is Test {
 
         uint256 deployerBalanceBefore = deployer.balance;
 
+        vm.setEnv(DEPLOYER_PRIVATE_KEY, vm.toString(deployerPrivateKey));
+        vm.setEnv(USDC_ADDRESS_KEY, vm.toString(scriptUsdc));
+        vm.setEnv(FEE_RECIPIENT_KEY, vm.toString(scriptFeeRecipient));
+        vm.setEnv(PROTOCOL_FEE_BPS_KEY, vm.toString(uint256(scriptFeeBps)));
+
         DeployEscrowFactory script = new DeployEscrowFactory();
-        EscrowFactory deployedFactory =
-            script.deployFromConfig(deployerPrivateKey, scriptUsdc, scriptFeeRecipient, scriptFeeBps);
+        EscrowFactory deployedFactory = script.run();
 
         assertEq(deployedFactory.usdc(), scriptUsdc);
         assertEq(deployedFactory.feeRecipient(), scriptFeeRecipient);

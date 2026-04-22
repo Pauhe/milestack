@@ -7,12 +7,15 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 
 import { MilestoneEscrow } from "src/MilestoneEscrow.sol";
 import {
+    AUTHORITY_MODEL_WIDENED_V1,
+    AuthorityAction,
     DealConfig,
     DealStatus,
     DelegatedAuthority,
     Milestone,
     MilestoneConfig,
     MilestoneStatus,
+    ParticipantRole,
     TopologyParticipant,
     WidenedAuthorityConfig
 } from "src/MilestackTypes.sol";
@@ -28,11 +31,41 @@ import {
     InvalidResolutionSplit,
     DeadlineNotReached,
     DeadlinePassed,
-    NothingToCancel
+    NothingToCancel,
+    InvalidAuthorityModelVersion,
+    DuplicateTopologyParticipant,
+    InvalidPartyConfiguration,
+    InvalidDelegatedAuthority,
+    DuplicateDelegation
 } from "src/MilestackErrors.sol";
 import { MockERC20 } from "test/mocks/MockERC20.sol";
 import { MockFailingTransferERC20 } from "test/mocks/MockFailingTransferERC20.sol";
 import { MilestoneClaimable } from "src/MilestackEvents.sol";
+
+contract MilestoneEscrowInternalHarness is MilestoneEscrow {
+    constructor(
+        DealConfig memory config,
+        MilestoneConfig[] memory milestoneConfigs,
+        WidenedAuthorityConfig memory widenedConfig
+    ) MilestoneEscrow(config, milestoneConfigs, widenedConfig) { }
+
+    function exposedPayerForAction(address actor, AuthorityAction action) external view returns (address) {
+        return _payerForAction(actor, action);
+    }
+
+    function exposedIsAuthorizedForRole(
+        address actor,
+        address principal,
+        ParticipantRole requiredRole,
+        AuthorityAction action
+    ) external view returns (bool) {
+        return _isAuthorizedForRole(actor, principal, requiredRole, action);
+    }
+
+    function exposedAllowedPermissionsForRole(ParticipantRole role) external pure returns (uint32) {
+        return _allowedPermissionsForRole(role);
+    }
+}
 
 contract MilestoneEscrowSubmissionTest is Test {
     address internal constant BUYER = address(0xB0B);
@@ -109,6 +142,56 @@ contract MilestoneEscrowSubmissionTest is Test {
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
 
         deployedEscrow = new MilestoneEscrow(config, milestoneConfigs, _mvpWidenedConfig());
+    }
+
+    function _baseDealConfig() internal view returns (DealConfig memory config) {
+        config = DealConfig({
+            buyer: BUYER,
+            seller: SELLER,
+            arbiter: ARBITER,
+            token: address(token),
+            feeRecipient: FEE_RECIPIENT,
+            protocolFeeBps: 100,
+            metadataHash: keccak256("authority-config-deal")
+        });
+    }
+
+    function _singleMilestoneConfig() internal pure returns (MilestoneConfig[] memory milestoneConfigs) {
+        milestoneConfigs = new MilestoneConfig[](1);
+        milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
+    }
+
+    function _widenedParticipants() internal pure returns (TopologyParticipant[] memory participants) {
+        participants = new TopologyParticipant[](3);
+        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+    }
+
+    function _singleFundDelegation(address delegate)
+        internal
+        pure
+        returns (DelegatedAuthority[] memory delegations)
+    {
+        delegations = new DelegatedAuthority[](1);
+        delegations[0] = DelegatedAuthority({
+            delegator: BUYER,
+            delegate: delegate,
+            permissions: uint32(1 << uint8(AuthorityAction.Fund)),
+            active: true
+        });
+    }
+
+    function _widenedConfig(TopologyParticipant[] memory participants, DelegatedAuthority[] memory delegations)
+        internal
+        pure
+        returns (WidenedAuthorityConfig memory config)
+    {
+        config = WidenedAuthorityConfig({
+            modelVersion: AUTHORITY_MODEL_WIDENED_V1,
+            participants: participants,
+            delegations: delegations
+        });
     }
 
     function testSellerCanSubmitFundedCurrentMilestone() public {
@@ -997,6 +1080,247 @@ contract MilestoneEscrowSubmissionTest is Test {
         vm.prank(BUYER);
         vm.expectRevert(abi.encodeWithSelector(NothingToCancel.selector));
         singleMilestoneEscrow.cancelUnfundedMilestones();
+    }
+
+    function testConfigureWidenedAuthorityRevertsForUnsupportedModelVersion() public {
+        TopologyParticipant[] memory participants = _widenedParticipants();
+        DelegatedAuthority[] memory delegations = _singleFundDelegation(address(0xD1));
+        WidenedAuthorityConfig memory config = _widenedConfig(participants, delegations);
+        config.modelVersion = AUTHORITY_MODEL_WIDENED_V1 + 1;
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidAuthorityModelVersion.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForDuplicateTopologyParticipant() public {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](4);
+        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[3] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(address(0xD1)));
+
+        vm.expectRevert(abi.encodeWithSelector(DuplicateTopologyParticipant.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForInactiveCanonicalBuyer() public {
+        TopologyParticipant[] memory participants = _widenedParticipants();
+        participants[0].active = false;
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(address(0xD1)));
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForInactiveCanonicalSeller() public {
+        TopologyParticipant[] memory participants = _widenedParticipants();
+        participants[1].active = false;
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(address(0xD1)));
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForInactiveCanonicalArbiter() public {
+        TopologyParticipant[] memory participants = _widenedParticipants();
+        participants[2].active = false;
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(address(0xD1)));
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForZeroDelegationAddress() public {
+        TopologyParticipant[] memory participants = _widenedParticipants();
+        DelegatedAuthority[] memory delegations = _singleFundDelegation(address(0xD1));
+        delegations[0].delegator = address(0);
+
+        WidenedAuthorityConfig memory config = _widenedConfig(participants, delegations);
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsForDuplicateDelegationPair() public {
+        address buyerDelegate = address(0xD1);
+
+        TopologyParticipant[] memory participants = new TopologyParticipant[](4);
+        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: true });
+
+        DelegatedAuthority[] memory delegations = new DelegatedAuthority[](2);
+        delegations[0] = DelegatedAuthority({
+            delegator: BUYER,
+            delegate: buyerDelegate,
+            permissions: uint32(1 << uint8(AuthorityAction.Fund)),
+            active: true
+        });
+        delegations[1] = delegations[0];
+
+        WidenedAuthorityConfig memory config = _widenedConfig(participants, delegations);
+
+        vm.expectRevert(abi.encodeWithSelector(DuplicateDelegation.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testWidenedFundDelegateRevertsWhenCanonicalBuyerRoleMismatches() public {
+        address buyerDelegate = address(0xD1);
+
+        TopologyParticipant[] memory participants = new TopologyParticipant[](4);
+        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Observer, active: true });
+        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: true });
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(buyerDelegate));
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidPartyConfiguration.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testConfigureWidenedAuthorityRevertsWhenDelegationDelegateIsInactive() public {
+        address buyerDelegate = address(0xD1);
+
+        TopologyParticipant[] memory participants = new TopologyParticipant[](4);
+        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: false });
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(buyerDelegate));
+
+        vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
+        new MilestoneEscrow(_baseDealConfig(), _singleMilestoneConfig(), config);
+    }
+
+    function testMockErc20TransferAndTransferFromHappyPath() public {
+        MockERC20 mockToken = new MockERC20();
+        address receiver = address(0xC0FFEE);
+        address spender = address(0xABCD);
+
+        mockToken.mint(address(this), 200e6);
+        assertTrue(mockToken.transfer(receiver, 100e6));
+        assertEq(mockToken.balanceOf(receiver), 100e6);
+
+        mockToken.approve(spender, 50e6);
+        vm.prank(spender);
+        assertTrue(mockToken.transferFrom(address(this), receiver, 50e6));
+
+        assertEq(mockToken.balanceOf(receiver), 150e6);
+        assertEq(mockToken.allowance(address(this), spender), 0);
+    }
+
+    function testMockErc20TransferRevertsOnInsufficientBalance() public {
+        MockERC20 mockToken = new MockERC20();
+
+        vm.expectRevert("insufficient balance");
+        mockToken.transfer(address(0xC0FFEE), 1);
+    }
+
+    function testMockErc20TransferFromRevertsOnInsufficientAllowance() public {
+        MockERC20 mockToken = new MockERC20();
+        address spender = address(0xABCD);
+
+        mockToken.mint(address(this), 10);
+
+        vm.prank(spender);
+        vm.expectRevert("insufficient allowance");
+        mockToken.transferFrom(address(this), address(0xC0FFEE), 1);
+    }
+
+    function testMockErc20TransferFromRevertsOnInsufficientBalance() public {
+        MockERC20 mockToken = new MockERC20();
+        address spender = address(0xABCD);
+
+        mockToken.approve(spender, 10);
+
+        vm.prank(spender);
+        vm.expectRevert("insufficient balance");
+        mockToken.transferFrom(address(this), address(0xC0FFEE), 1);
+    }
+
+    function testMockFailingTransferReturnsFalse() public {
+        MockFailingTransferERC20 failingToken = new MockFailingTransferERC20();
+
+        assertFalse(failingToken.transfer(address(0xC0FFEE), 1));
+    }
+
+    function testInternalPayerForActionFallsBackToActorForNonFundAction() public {
+        MilestoneEscrowInternalHarness harness = _deployInternalHarnessMvp();
+        address actor = address(0xDADA);
+
+        assertEq(harness.exposedPayerForAction(actor, AuthorityAction.Resolve), actor);
+    }
+
+    function testInternalIsAuthorizedForRoleReturnsFalseWhenActorIsOutsideTopology() public {
+        address buyerDelegate = address(0xD1);
+        MilestoneEscrowInternalHarness harness = _deployInternalHarnessWidened(buyerDelegate);
+
+        assertFalse(
+            harness.exposedIsAuthorizedForRole(
+                address(0xD2),
+                BUYER,
+                ParticipantRole.Buyer,
+                AuthorityAction.Fund
+            )
+        );
+    }
+
+    function testInternalIsAuthorizedForRoleReturnsFalseWhenTopologyRoleMismatches() public {
+        address buyerDelegate = address(0xD1);
+        MilestoneEscrowInternalHarness harness = _deployInternalHarnessWidened(buyerDelegate);
+
+        assertFalse(
+            harness.exposedIsAuthorizedForRole(
+                buyerDelegate,
+                BUYER,
+                ParticipantRole.Seller,
+                AuthorityAction.Fund
+            )
+        );
+    }
+
+    function testInternalAllowedPermissionsReturnsZeroForObserverRole() public {
+        MilestoneEscrowInternalHarness harness = _deployInternalHarnessMvp();
+
+        assertEq(harness.exposedAllowedPermissionsForRole(ParticipantRole.Observer), 0);
+    }
+
+    function _deployInternalHarnessMvp() internal returns (MilestoneEscrowInternalHarness harness) {
+        harness = new MilestoneEscrowInternalHarness(
+            _baseDealConfig(),
+            _singleMilestoneConfig(),
+            _mvpWidenedConfig()
+        );
+    }
+
+    function _deployInternalHarnessWidened(address buyerDelegate)
+        internal
+        returns (MilestoneEscrowInternalHarness harness)
+    {
+        TopologyParticipant[] memory participants = new TopologyParticipant[](4);
+        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: true });
+
+        WidenedAuthorityConfig memory config =
+            _widenedConfig(participants, _singleFundDelegation(buyerDelegate));
+
+        harness = new MilestoneEscrowInternalHarness(_baseDealConfig(), _singleMilestoneConfig(), config);
     }
 
     function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
