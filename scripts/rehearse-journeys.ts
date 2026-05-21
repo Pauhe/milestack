@@ -38,6 +38,11 @@ const milestoneAmount = BigInt(process.env.REHEARSAL_MILESTONE_AMOUNT ?? "100000
 const reviewWindowSeconds = Number(process.env.REHEARSAL_REVIEW_WINDOW_SECONDS ?? 300);
 const protocolFeeBps = Number(process.env.REHEARSAL_PROTOCOL_FEE_BPS ?? 100);
 
+// PUBLIC well-known Anvil/Hardhat test mnemonic accounts (#0-#3).
+// These are the default deterministic keys shipped with Anvil/Hardhat and are
+// known to anyone running a local devnet. They are used ONLY for local
+// rehearsals on chainId 31337 and must never be used on any public chain.
+// Override via REHEARSAL_*_PRIVATE_KEY env vars for non-default setups.
 const DEFAULT_KEYS = {
   deployer:
     "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",

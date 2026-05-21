@@ -57,11 +57,7 @@ Why this segment:
 
 ## Launch Boundary Authority
 
-For first-launch scope decisions, treat the canonical boundary and recovery program as authoritative:
-- `.gsd/milestones/M001/slices/S02/canonical-launch-boundary.md`
-- `.gsd/milestones/M001/slices/S04/recovery-program.md`
-
-If any broad doc conflicts with those artifacts, those artifacts win until explicitly superseded.
+For first-launch scope decisions, the canonical boundary and recovery program are tracked in the project's internal milestone artifacts and are not published in this repository. The in-repo docs listed below reflect the agreed boundary at time of writing; if a broader doc conflicts with the narrower in-repo specifications (e.g. `docs/TECHNICAL_ARCHITECTURE.md`, `docs/CONTRACT_SPEC.md`), the narrower spec is authoritative.
 
 ## Operability Truth Surface (Rehearsal-Local Only)
 

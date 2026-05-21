@@ -29,3 +29,26 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# ── Build, test, and runtime artifacts ──
+.artifacts/
+coverage-probe/
+test-results/
+playwright-output/
+playwright-report/
+data/
+backend/data/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+lcov.info
+foundry.lock
+contracts/out/
+contracts/cache/
+
+# ── Local rehearsal evidence (regenerable, leaks absolute paths) ──
+deployments/rehearsal-local/rehearsal-verification.json
+deployments/rehearsal-local/rehearsal-recovery-verification.json
+deployments/rehearsal-local/operability-verification.json
+deployments/rehearsal-local/browser-evidence/playwright-output/
