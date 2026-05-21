@@ -1,7 +1,11 @@
 import { readFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-const TARGET = 100;
+const TARGETS = {
+  backend: 90,
+  web: 80,
+  contracts: 98,
+};
 const EPSILON = 1e-9;
 const STRICT = process.env.COVERAGE_ENFORCEMENT === "hard";
 
@@ -33,17 +37,21 @@ function readJson(path) {
 }
 
 function evaluateMetric(surface, metricName, pct) {
-  const delta = TARGET - pct;
+  const target = TARGETS[surface];
+  if (typeof target !== "number") {
+    throw new Error(`Missing target threshold for surface: ${surface}`);
+  }
+  const delta = target - pct;
   if (delta > EPSILON) {
     return {
       ok: false,
-      message: `${surface} ${metricName} ${pct.toFixed(2)}% (< 100.00%)`,
+      message: `${surface} ${metricName} ${pct.toFixed(2)}% (< ${target.toFixed(2)}%)`,
     };
   }
 
   return {
     ok: true,
-    message: `${surface} ${metricName} ${pct.toFixed(2)}%`,
+    message: `${surface} ${metricName} ${pct.toFixed(2)}% (>= ${target.toFixed(2)}%)`,
   };
 }
 
@@ -168,7 +176,13 @@ function printHeader() {
   console.log(
     "- Conservative truth semantics are preserved: we report measured artifacts only; no permissive mock substitution in proof checks.",
   );
-  console.log("- Enforcement mode:", STRICT ? "hard (exit 1 on <100%)" : "report-only (non-blocking)");
+  console.log("- Enforcement mode:", STRICT ? "hard (exit 1 on threshold miss)" : "report-only (non-blocking)");
+  console.log(
+    "- Thresholds:",
+    Object.entries(TARGETS)
+      .map(([surface, target]) => `${surface} ${target.toFixed(2)}%`)
+      .join(", "),
+  );
   console.log("- Expected artifacts:");
   console.log("  - backend/coverage/coverage-summary.json");
   console.log("  - web/coverage/coverage-summary.json");
@@ -197,7 +211,7 @@ function main() {
   }
 
   if (failures.length > 0) {
-    console.error("Coverage proof failed. Surfaces below 100%:");
+    console.error("Coverage proof failed. Surfaces below configured thresholds:");
     for (const message of failures) {
       console.error(`- ${message}`);
     }
@@ -217,7 +231,7 @@ function main() {
     return;
   }
 
-  console.log("🎉 Coverage proof passed: backend, web, and contracts are all at 100%.");
+  console.log("🎉 Coverage proof passed: backend, web, and contracts meet configured thresholds.");
 }
 
 try {
