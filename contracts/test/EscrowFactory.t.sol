@@ -251,12 +251,8 @@ contract EscrowFactoryTest is Test {
         address observer = config.participants[3].account;
 
         config.participants[3].active = false;
-        config.delegations[0] = DelegatedAuthority(
-            observer,
-            BUYER,
-            uint32(1 << uint8(AuthorityAction.Fund)),
-            true
-        );
+        config.delegations[0] =
+            DelegatedAuthority(observer, BUYER, uint32(1 << uint8(AuthorityAction.Fund)), true);
 
         vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
         factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
@@ -283,7 +279,9 @@ contract EscrowFactoryTest is Test {
             true
         );
 
-        address escrow = factory.createEscrowWidened(BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config);
+        address escrow = factory.createEscrowWidened(
+            BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), config
+        );
         assertTrue(escrow != address(0));
     }
 
@@ -331,7 +329,9 @@ contract EscrowFactoryTest is Test {
     function testDeployScriptRunRevertsWhenProtocolFeeBpsOverflowsUint16() public {
         DeployEscrowFactory script = new DeployEscrowFactory();
         vm.expectRevert(bytes("PROTOCOL_FEE_BPS_OVERFLOW"));
-        script.deployFromConfig(0xA11CE, address(0x1234), address(0x5678), uint256(type(uint16).max) + 1);
+        script.deployFromConfig(
+            0xA11CE, address(0x1234), address(0x5678), uint256(type(uint16).max) + 1
+        );
     }
 
     function _milestones() internal pure returns (MilestoneConfig[] memory milestones) {
@@ -350,12 +350,8 @@ contract EscrowFactoryTest is Test {
         participants[3] = TopologyParticipant(observer, ParticipantRole.Observer, true);
 
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](1);
-        delegations[0] = DelegatedAuthority(
-            BUYER,
-            observer,
-            uint32(1 << uint8(AuthorityAction.Fund)),
-            true
-        );
+        delegations[0] =
+            DelegatedAuthority(BUYER, observer, uint32(1 << uint8(AuthorityAction.Fund)), true);
 
         config = WidenedAuthorityConfig({
             modelVersion: AUTHORITY_MODEL_WIDENED_V1,
@@ -367,6 +363,8 @@ contract EscrowFactoryTest is Test {
     function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
-        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
+        config = WidenedAuthorityConfig({
+            modelVersion: 0, participants: participants, delegations: delegations
+        });
     }
 }

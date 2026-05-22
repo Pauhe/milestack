@@ -64,7 +64,8 @@ contract MilestoneEscrowHandler is Test {
         bytes32 nonZeroEvidence = evidenceHash == bytes32(0) ? bytes32(uint256(1)) : evidenceHash;
 
         vm.prank(SELLER);
-        try escrow.submitMilestone(_deriveMilestoneId(rawMilestoneId), nonZeroEvidence) { } catch { }
+        try escrow.submitMilestone(_deriveMilestoneId(rawMilestoneId), nonZeroEvidence) { }
+            catch { }
 
         _syncMaxIndex();
     }
@@ -149,9 +150,7 @@ contract MilestoneEscrowHandler is Test {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
         config = WidenedAuthorityConfig({
-            modelVersion: 0,
-            participants: participants,
-            delegations: delegations
+            modelVersion: 0, participants: participants, delegations: delegations
         });
     }
 }
@@ -190,9 +189,7 @@ contract MilestoneEscrowHandlerZeroMilestones is Test {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
         config = WidenedAuthorityConfig({
-            modelVersion: 0,
-            participants: participants,
-            delegations: delegations
+            modelVersion: 0, participants: participants, delegations: delegations
         });
     }
 }
@@ -322,9 +319,7 @@ contract MilestoneEscrowInvariantTest is StdInvariant, Test {
         escrow.openDispute(0, keccak256("dispute"));
 
         assertEq(
-            escrow.activeDisputeMilestoneId(),
-            0,
-            "fixture should open dispute at current milestone"
+            escrow.activeDisputeMilestoneId(), 0, "fixture should open dispute at current milestone"
         );
         assertEq(
             uint256(escrow.getMilestone(0).status),
@@ -378,8 +373,9 @@ contract MilestoneEscrowInvariantTest is StdInvariant, Test {
         MilestoneEscrow escrow = handler.escrow();
         MockERC20 token = handler.token();
 
-        uint256 distributedAndHeld = token.balanceOf(address(escrow)) + escrow.totalReleasedToSeller()
-            + escrow.totalRefundedToBuyer() + escrow.totalFeesCollected();
+        uint256 distributedAndHeld = token.balanceOf(address(escrow))
+            + escrow.totalReleasedToSeller() + escrow.totalRefundedToBuyer()
+            + escrow.totalFeesCollected();
 
         assertEq(distributedAndHeld, escrow.totalFunded());
     }
@@ -393,7 +389,9 @@ contract MilestoneEscrowInvariantTest is StdInvariant, Test {
             Milestone memory milestone = escrow.getMilestone(i);
             if (milestone.status == MilestoneStatus.Disputed) {
                 disputeCount++;
-                assertEq(i, disputeIndex, "active dispute pointer must match disputed milestone index");
+                assertEq(
+                    i, disputeIndex, "active dispute pointer must match disputed milestone index"
+                );
             }
         }
 
@@ -421,7 +419,9 @@ contract MilestoneEscrowInvariantTest is StdInvariant, Test {
         uint256 currentIndex = escrow.currentMilestoneIndex();
         uint256 milestoneCount = escrow.milestoneCount();
 
-        assertLe(currentIndex, milestoneCount - 1, "current index must stay within milestone bounds");
+        assertLe(
+            currentIndex, milestoneCount - 1, "current index must stay within milestone bounds"
+        );
         assertEq(currentIndex, handler.maxObservedIndex(), "current index must never move backward");
 
         for (uint256 i = 0; i < currentIndex; i++) {

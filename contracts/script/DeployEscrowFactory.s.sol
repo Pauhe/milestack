@@ -12,7 +12,8 @@ contract DeployEscrowFactory is Script {
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
         uint256 rawProtocolFeeBps = vm.envUint("PROTOCOL_FEE_BPS");
 
-        deployedFactory = deployFromConfig(deployerPrivateKey, usdc, feeRecipient, rawProtocolFeeBps);
+        deployedFactory =
+            deployFromConfig(deployerPrivateKey, usdc, feeRecipient, rawProtocolFeeBps);
     }
 
     function deployFromConfig(

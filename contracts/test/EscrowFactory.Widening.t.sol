@@ -52,12 +52,7 @@ contract EscrowFactoryWideningTest is Test {
 
     function testCreateEscrowWidenedDeploysWidenedAuthorityModel() public {
         address escrowAddress = factory.createEscrowWidened(
-            BUYER,
-            SELLER,
-            ARBITER,
-            METADATA_HASH,
-            _milestones(),
-            _defaultWidenedConfig()
+            BUYER, SELLER, ARBITER, METADATA_HASH, _milestones(), _defaultWidenedConfig()
         );
 
         MilestoneEscrow escrow = MilestoneEscrow(escrowAddress);
@@ -129,12 +124,8 @@ contract EscrowFactoryWideningTest is Test {
     function testCreateEscrowWidenedRevertsForSelfDelegationLoop() public {
         WidenedAuthorityConfig memory config = _defaultWidenedConfig();
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](1);
-        delegations[0] = DelegatedAuthority(
-            BUYER,
-            BUYER,
-            uint32(1 << uint8(AuthorityAction.Fund)),
-            true
-        );
+        delegations[0] =
+            DelegatedAuthority(BUYER, BUYER, uint32(1 << uint8(AuthorityAction.Fund)), true);
         config.delegations = delegations;
 
         vm.expectRevert(abi.encodeWithSelector(SelfDelegation.selector));
@@ -144,12 +135,8 @@ contract EscrowFactoryWideningTest is Test {
     function testCreateEscrowWidenedRevertsForZeroDelegationAddress() public {
         WidenedAuthorityConfig memory config = _defaultWidenedConfig();
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](1);
-        delegations[0] = DelegatedAuthority(
-            BUYER,
-            address(0),
-            uint32(1 << uint8(AuthorityAction.Fund)),
-            true
-        );
+        delegations[0] =
+            DelegatedAuthority(BUYER, address(0), uint32(1 << uint8(AuthorityAction.Fund)), true);
         config.delegations = delegations;
 
         vm.expectRevert(abi.encodeWithSelector(InvalidDelegatedAuthority.selector));
@@ -160,10 +147,7 @@ contract EscrowFactoryWideningTest is Test {
         WidenedAuthorityConfig memory config = _defaultWidenedConfig();
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](1);
         delegations[0] = DelegatedAuthority(
-            SELLER,
-            BUYER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Resolve)),
-            true
+            SELLER, BUYER_DELEGATE, uint32(1 << uint8(AuthorityAction.Resolve)), true
         );
         config.delegations = delegations;
 
@@ -185,10 +169,7 @@ contract EscrowFactoryWideningTest is Test {
 
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](1);
         delegations[0] = DelegatedAuthority(
-            BUYER,
-            BUYER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Fund)),
-            true
+            BUYER, BUYER_DELEGATE, uint32(1 << uint8(AuthorityAction.Fund)), true
         );
 
         config = WidenedAuthorityConfig({

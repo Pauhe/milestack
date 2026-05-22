@@ -263,7 +263,8 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
 
     function testWidenedFundRevertsWhenDelegateNotInTopologyButDelegationExists() public {
         WidenedAuthorityConfig memory config = _widenedConfig();
-        MilestoneEscrow escrowWithInactiveDelegate = new MilestoneEscrow(_config(), _milestones(), config);
+        MilestoneEscrow escrowWithInactiveDelegate =
+            new MilestoneEscrow(_config(), _milestones(), config);
 
         bytes32 topologyKey = keccak256(abi.encode(BUYER_DELEGATE, uint256(15)));
         vm.store(address(escrowWithInactiveDelegate), topologyKey, bytes32(0));
@@ -301,7 +302,11 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
         participants[5] = TopologyParticipant(ARBITER_DELEGATE, ParticipantRole.Observer, true);
     }
 
-    function _baseParticipantsWithoutBuyer() internal pure returns (TopologyParticipant[] memory participants) {
+    function _baseParticipantsWithoutBuyer()
+        internal
+        pure
+        returns (TopologyParticipant[] memory participants)
+    {
         participants = new TopologyParticipant[](5);
         participants[0] = TopologyParticipant(SELLER, ParticipantRole.Seller, true);
         participants[1] = TopologyParticipant(ARBITER, ParticipantRole.Arbiter, true);
@@ -345,23 +350,18 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
         delegations[0] = DelegatedAuthority(
             BUYER,
             BUYER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Fund))
-                | uint32(1 << uint8(AuthorityAction.Approve))
+            uint32(1 << uint8(AuthorityAction.Fund)) | uint32(1 << uint8(AuthorityAction.Approve))
                 | uint32(1 << uint8(AuthorityAction.Dispute)),
             true
         );
         delegations[1] = DelegatedAuthority(
             SELLER,
             SELLER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Submit))
-                | uint32(1 << uint8(AuthorityAction.Claim)),
+            uint32(1 << uint8(AuthorityAction.Submit)) | uint32(1 << uint8(AuthorityAction.Claim)),
             true
         );
         delegations[2] = DelegatedAuthority(
-            ARBITER,
-            ARBITER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Resolve)),
-            true
+            ARBITER, ARBITER_DELEGATE, uint32(1 << uint8(AuthorityAction.Resolve)), true
         );
 
         config = WidenedAuthorityConfig({
@@ -379,29 +379,25 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
         participants[3] = TopologyParticipant(BUYER_DELEGATE, ParticipantRole.Observer, true);
         participants[4] = TopologyParticipant(SELLER_DELEGATE, ParticipantRole.Observer, true);
         participants[5] = TopologyParticipant(ARBITER_DELEGATE, ParticipantRole.Observer, true);
-        participants[6] = TopologyParticipant(INACTIVE_TOPOLOGY_MEMBER, ParticipantRole.Observer, false);
+        participants[6] =
+            TopologyParticipant(INACTIVE_TOPOLOGY_MEMBER, ParticipantRole.Observer, false);
 
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](3);
         delegations[0] = DelegatedAuthority(
             BUYER,
             BUYER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Fund))
-                | uint32(1 << uint8(AuthorityAction.Approve))
+            uint32(1 << uint8(AuthorityAction.Fund)) | uint32(1 << uint8(AuthorityAction.Approve))
                 | uint32(1 << uint8(AuthorityAction.Dispute)),
             true
         );
         delegations[1] = DelegatedAuthority(
             SELLER,
             SELLER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Submit))
-                | uint32(1 << uint8(AuthorityAction.Claim)),
+            uint32(1 << uint8(AuthorityAction.Submit)) | uint32(1 << uint8(AuthorityAction.Claim)),
             true
         );
         delegations[2] = DelegatedAuthority(
-            ARBITER,
-            ARBITER_DELEGATE,
-            uint32(1 << uint8(AuthorityAction.Resolve)),
-            true
+            ARBITER, ARBITER_DELEGATE, uint32(1 << uint8(AuthorityAction.Resolve)), true
         );
 
         config = WidenedAuthorityConfig({
@@ -414,6 +410,8 @@ contract MilestoneEscrowDelegationAndTopologyTest is Test {
     function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
-        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
+        config = WidenedAuthorityConfig({
+            modelVersion: 0, participants: participants, delegations: delegations
+        });
     }
 }

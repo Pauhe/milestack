@@ -202,7 +202,9 @@ contract EscrowFactory {
                 revert InvalidDelegatedAuthority();
             }
             if (delegation.delegator == delegation.delegate) revert SelfDelegation();
-            if (delegation.permissions == 0 || !delegation.active) revert InvalidDelegatedAuthority();
+            if (delegation.permissions == 0 || !delegation.active) {
+                revert InvalidDelegatedAuthority();
+            }
 
             for (uint256 j = 0; j < i; j++) {
                 if (
@@ -215,8 +217,12 @@ contract EscrowFactory {
 
             ParticipantRole delegatorRole = _findRole(participants, delegation.delegator);
             if (delegatorRole == ParticipantRole.None) revert InvalidDelegatedAuthority();
-            if (!_findActive(participants, delegation.delegator)) revert InvalidDelegatedAuthority();
-            if (!_findActive(participants, delegation.delegate)) revert InvalidDelegatedAuthority();
+            if (!_findActive(participants, delegation.delegator)) {
+                revert InvalidDelegatedAuthority();
+            }
+            if (!_findActive(participants, delegation.delegate)) {
+                revert InvalidDelegatedAuthority();
+            }
 
             uint32 allowed = _allowedPermissionsForRole(delegatorRole);
             if (allowed == 0 || (delegation.permissions & ~allowed) != 0) {
@@ -230,9 +236,7 @@ contract EscrowFactory {
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
 
         config = WidenedAuthorityConfig({
-            modelVersion: 0,
-            participants: participants,
-            delegations: delegations
+            modelVersion: 0, participants: participants, delegations: delegations
         });
     }
 

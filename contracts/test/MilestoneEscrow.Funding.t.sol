@@ -140,9 +140,7 @@ contract MilestoneEscrowFundingTest is Test {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
         config = WidenedAuthorityConfig({
-            modelVersion: 0,
-            participants: participants,
-            delegations: delegations
+            modelVersion: 0, participants: participants, delegations: delegations
         });
     }
 }

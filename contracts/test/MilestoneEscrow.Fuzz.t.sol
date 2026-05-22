@@ -262,8 +262,9 @@ contract MilestoneEscrowFuzzTest is Test {
 
         uint256 totalAmount = amount0 + amount1;
 
-        (MockERC20 token, MilestoneEscrow escrow) =
-            _deployTwoMilestoneEscrowWithFunding(amount0, amount1, reviewWindow, feeBps, totalAmount);
+        (MockERC20 token, MilestoneEscrow escrow) = _deployTwoMilestoneEscrowWithFunding(
+            amount0, amount1, reviewWindow, feeBps, totalAmount
+        );
 
         vm.prank(BUYER);
         escrow.fundAllMilestones();
@@ -318,8 +319,9 @@ contract MilestoneEscrowFuzzTest is Test {
 
         uint256 totalAmount = amount0 + amount1;
 
-        (MockERC20 token, MilestoneEscrow escrow) =
-            _deployTwoMilestoneEscrowWithFunding(amount0, amount1, reviewWindow, feeBps, totalAmount);
+        (MockERC20 token, MilestoneEscrow escrow) = _deployTwoMilestoneEscrowWithFunding(
+            amount0, amount1, reviewWindow, feeBps, totalAmount
+        );
 
         vm.prank(BUYER);
         escrow.fundAllMilestones();
@@ -376,7 +378,8 @@ contract MilestoneEscrowFuzzTest is Test {
         uint32 reviewWindow = uint32(bound(uint256(rawReviewWindow), 1, 30 days));
         uint16 feeBps = uint16(bound(uint256(rawFeeBps), 0, 2_000));
 
-        uint256 sellerGrossAmount0 = (amount0 * bound(uint256(rawSellerShareBps), 0, 10_000)) / 10_000;
+        uint256 sellerGrossAmount0 =
+            (amount0 * bound(uint256(rawSellerShareBps), 0, 10_000)) / 10_000;
         uint256 buyerAmount0 = amount0 - sellerGrossAmount0;
 
         (MockERC20 token, MilestoneEscrow escrow) =
@@ -509,8 +512,9 @@ contract MilestoneEscrowFuzzTest is Test {
     }
 
     function _assertEscrowConservation(MockERC20 token, MilestoneEscrow escrow) internal view {
-        uint256 distributedAndHeld = token.balanceOf(address(escrow)) + escrow.totalReleasedToSeller()
-            + escrow.totalRefundedToBuyer() + escrow.totalFeesCollected();
+        uint256 distributedAndHeld = token.balanceOf(address(escrow))
+            + escrow.totalReleasedToSeller() + escrow.totalRefundedToBuyer()
+            + escrow.totalFeesCollected();
 
         assertEq(distributedAndHeld, escrow.totalFunded());
     }
@@ -518,6 +522,8 @@ contract MilestoneEscrowFuzzTest is Test {
     function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
-        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
+        config = WidenedAuthorityConfig({
+            modelVersion: 0, participants: participants, delegations: delegations
+        });
     }
 }

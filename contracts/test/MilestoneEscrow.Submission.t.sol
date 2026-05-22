@@ -49,11 +49,19 @@ contract MilestoneEscrowInternalHarness is MilestoneEscrow {
         WidenedAuthorityConfig memory widenedConfig
     ) MilestoneEscrow(config, milestoneConfigs, widenedConfig) { }
 
-    function exposedPayerForAction(address actor, AuthorityAction action) external view returns (address) {
+    function exposedPayerForAction(address actor, AuthorityAction action)
+        external
+        view
+        returns (address)
+    {
         return _payerForAction(actor, action);
     }
 
-    function exposedIsAuthorized(address actor, AuthorityAction action) external view returns (bool) {
+    function exposedIsAuthorized(address actor, AuthorityAction action)
+        external
+        view
+        returns (bool)
+    {
         return _isAuthorized(actor, action);
     }
 
@@ -184,16 +192,27 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
     }
 
-    function _singleMilestoneConfig() internal pure returns (MilestoneConfig[] memory milestoneConfigs) {
+    function _singleMilestoneConfig()
+        internal
+        pure
+        returns (MilestoneConfig[] memory milestoneConfigs)
+    {
         milestoneConfigs = new MilestoneConfig[](1);
         milestoneConfigs[0] = MilestoneConfig({ amount: 1_000e6, reviewWindowSeconds: 5 days });
     }
 
-    function _widenedParticipants() internal pure returns (TopologyParticipant[] memory participants) {
+    function _widenedParticipants()
+        internal
+        pure
+        returns (TopologyParticipant[] memory participants)
+    {
         participants = new TopologyParticipant[](3);
-        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
-        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
-        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[0] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] =
+            TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] =
+            TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
     }
 
     function _singleFundDelegation(address delegate)
@@ -210,11 +229,10 @@ contract MilestoneEscrowSubmissionTest is Test {
         });
     }
 
-    function _widenedConfig(TopologyParticipant[] memory participants, DelegatedAuthority[] memory delegations)
-        internal
-        pure
-        returns (WidenedAuthorityConfig memory config)
-    {
+    function _widenedConfig(
+        TopologyParticipant[] memory participants,
+        DelegatedAuthority[] memory delegations
+    ) internal pure returns (WidenedAuthorityConfig memory config) {
         config = WidenedAuthorityConfig({
             modelVersion: AUTHORITY_MODEL_WIDENED_V1,
             participants: participants,
@@ -1219,10 +1237,14 @@ contract MilestoneEscrowSubmissionTest is Test {
 
     function testConfigureWidenedAuthorityRevertsForDuplicateTopologyParticipant() public {
         TopologyParticipant[] memory participants = new TopologyParticipant[](4);
-        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
-        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
-        participants[2] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
-        participants[3] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[0] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] =
+            TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[3] =
+            TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
 
         WidenedAuthorityConfig memory config =
             _widenedConfig(participants, _singleFundDelegation(address(0xD1)));
@@ -1279,10 +1301,15 @@ contract MilestoneEscrowSubmissionTest is Test {
         address buyerDelegate = address(0xD1);
 
         TopologyParticipant[] memory participants = new TopologyParticipant[](4);
-        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
-        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
-        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
-        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: true });
+        participants[0] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] =
+            TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] =
+            TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({
+            account: buyerDelegate, role: ParticipantRole.Observer, active: true
+        });
 
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](2);
         delegations[0] = DelegatedAuthority({
@@ -1303,10 +1330,15 @@ contract MilestoneEscrowSubmissionTest is Test {
         address buyerDelegate = address(0xD1);
 
         TopologyParticipant[] memory participants = new TopologyParticipant[](4);
-        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Observer, active: true });
-        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
-        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
-        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: true });
+        participants[0] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Observer, active: true });
+        participants[1] =
+            TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] =
+            TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({
+            account: buyerDelegate, role: ParticipantRole.Observer, active: true
+        });
 
         WidenedAuthorityConfig memory config =
             _widenedConfig(participants, _singleFundDelegation(buyerDelegate));
@@ -1319,10 +1351,15 @@ contract MilestoneEscrowSubmissionTest is Test {
         address buyerDelegate = address(0xD1);
 
         TopologyParticipant[] memory participants = new TopologyParticipant[](4);
-        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
-        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
-        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
-        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: false });
+        participants[0] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] =
+            TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] =
+            TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({
+            account: buyerDelegate, role: ParticipantRole.Observer, active: false
+        });
 
         WidenedAuthorityConfig memory config =
             _widenedConfig(participants, _singleFundDelegation(buyerDelegate));
@@ -1396,10 +1433,7 @@ contract MilestoneEscrowSubmissionTest is Test {
 
         assertFalse(
             harness.exposedIsAuthorizedForRole(
-                address(0xD2),
-                BUYER,
-                ParticipantRole.Buyer,
-                AuthorityAction.Fund
+                address(0xD2), BUYER, ParticipantRole.Buyer, AuthorityAction.Fund
             )
         );
     }
@@ -1410,15 +1444,14 @@ contract MilestoneEscrowSubmissionTest is Test {
 
         assertFalse(
             harness.exposedIsAuthorizedForRole(
-                buyerDelegate,
-                BUYER,
-                ParticipantRole.Seller,
-                AuthorityAction.Fund
+                buyerDelegate, BUYER, ParticipantRole.Seller, AuthorityAction.Fund
             )
         );
     }
 
-    function testInternalIsAuthorizedReturnsFalseForCancelActionWhenNoBuyerOrSellerAuthority() public {
+    function testInternalIsAuthorizedReturnsFalseForCancelActionWhenNoBuyerOrSellerAuthority()
+        public
+    {
         MilestoneEscrowInternalHarness harness = _deployInternalHarnessWidened(address(0xD1));
 
         assertFalse(
@@ -1440,20 +1473,19 @@ contract MilestoneEscrowSubmissionTest is Test {
         assertEq(harness.exposedAllowedPermissionsForRole(ParticipantRole.Observer), 0);
     }
 
-    function _setMilestoneStatus(MilestoneEscrow target, uint256 milestoneId, MilestoneStatus status)
-        internal
-    {
+    function _setMilestoneStatus(
+        MilestoneEscrow target,
+        uint256 milestoneId,
+        MilestoneStatus status
+    ) internal {
         bytes32 milestonesBase = keccak256(abi.encode(uint256(MILESTONES_SLOT)));
-        uint256 statusSlot =
-            uint256(milestonesBase) + milestoneId * MILESTONE_STORAGE_STRIDE + 1;
+        uint256 statusSlot = uint256(milestonesBase) + milestoneId * MILESTONE_STORAGE_STRIDE + 1;
         vm.store(address(target), bytes32(statusSlot), bytes32(uint256(status)));
     }
 
     function _deployInternalHarnessMvp() internal returns (MilestoneEscrowInternalHarness harness) {
         harness = new MilestoneEscrowInternalHarness(
-            _baseDealConfig(),
-            _singleMilestoneConfig(),
-            _mvpWidenedConfig()
+            _baseDealConfig(), _singleMilestoneConfig(), _mvpWidenedConfig()
         );
     }
 
@@ -1462,20 +1494,28 @@ contract MilestoneEscrowSubmissionTest is Test {
         returns (MilestoneEscrowInternalHarness harness)
     {
         TopologyParticipant[] memory participants = new TopologyParticipant[](4);
-        participants[0] = TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
-        participants[1] = TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
-        participants[2] = TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
-        participants[3] = TopologyParticipant({ account: buyerDelegate, role: ParticipantRole.Observer, active: true });
+        participants[0] =
+            TopologyParticipant({ account: BUYER, role: ParticipantRole.Buyer, active: true });
+        participants[1] =
+            TopologyParticipant({ account: SELLER, role: ParticipantRole.Seller, active: true });
+        participants[2] =
+            TopologyParticipant({ account: ARBITER, role: ParticipantRole.Arbiter, active: true });
+        participants[3] = TopologyParticipant({
+            account: buyerDelegate, role: ParticipantRole.Observer, active: true
+        });
 
         WidenedAuthorityConfig memory config =
             _widenedConfig(participants, _singleFundDelegation(buyerDelegate));
 
-        harness = new MilestoneEscrowInternalHarness(_baseDealConfig(), _singleMilestoneConfig(), config);
+        harness =
+            new MilestoneEscrowInternalHarness(_baseDealConfig(), _singleMilestoneConfig(), config);
     }
 
     function _mvpWidenedConfig() internal pure returns (WidenedAuthorityConfig memory config) {
         TopologyParticipant[] memory participants = new TopologyParticipant[](0);
         DelegatedAuthority[] memory delegations = new DelegatedAuthority[](0);
-        config = WidenedAuthorityConfig({ modelVersion: 0, participants: participants, delegations: delegations });
+        config = WidenedAuthorityConfig({
+            modelVersion: 0, participants: participants, delegations: delegations
+        });
     }
 }

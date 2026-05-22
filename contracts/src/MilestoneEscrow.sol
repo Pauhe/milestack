@@ -365,7 +365,9 @@ contract MilestoneEscrow {
                 revert InvalidDelegatedAuthority();
             }
             if (delegation.delegator == delegation.delegate) revert SelfDelegation();
-            if (delegation.permissions == 0 || !delegation.active) revert InvalidDelegatedAuthority();
+            if (delegation.permissions == 0 || !delegation.active) {
+                revert InvalidDelegatedAuthority();
+            }
 
             for (uint256 j = 0; j < i; j++) {
                 if (
@@ -421,7 +423,11 @@ contract MilestoneEscrow {
         revert UnauthorizedDelegateOrTopology();
     }
 
-    function _payerForAction(address actor, AuthorityAction action) internal view returns (address) {
+    function _payerForAction(address actor, AuthorityAction action)
+        internal
+        view
+        returns (address)
+    {
         if (action == AuthorityAction.Fund) {
             if (actor == dealConfig.buyer) {
                 return actor;
