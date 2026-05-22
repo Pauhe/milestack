@@ -26,6 +26,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Build contracts (produce contracts/out)
+        run: forge build
+        working-directory: contracts
 
       - name: Setup Node
         uses: actions/setup-node@v4
